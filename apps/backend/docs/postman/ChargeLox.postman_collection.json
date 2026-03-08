@@ -1,0 +1,130 @@
+{
+  "info": {
+    "_postman_id": "3f97a03f-2bd2-46cb-894f-a9665f3fce5f",
+    "name": "ChargeLox API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección base para probar ChargeLox desde Postman."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Auth - Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombres\": \"Analista Demo\",\n  \"apellidos\": \"QA\",\n  \"email\": \"analista.demo@chargelox.com\",\n  \"password\": \"Password123*\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/register"
+      }
+    },
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@chargelox.com\",\n  \"password\": \"Password123*\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Users - Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/users/me"
+      }
+    },
+    {
+      "name": "ChargingPoints - Public List",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/charging-points/public?page=1&limit=10"
+      }
+    },
+    {
+      "name": "ChargingPoints - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Punto Test\",\n  \"codigoAsignado\": \"CP-TEST-001\",\n  \"serial\": \"SERIAL-TEST-001\",\n  \"puk\": \"PUK-TEST-001\",\n  \"prioridad\": \"ALTA\",\n  \"estado\": \"LIBRE\",\n  \"estadoConexion\": \"OK\",\n  \"puerto\": \"1\",\n  \"tipo\": \"PUNTO_CARGA\"\n}"
+        },
+        "url": "{{baseUrl}}/charging-points"
+      }
+    },
+    {
+      "name": "ShiftLogs - Start",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": "{{baseUrl}}/shift-logs/start"
+      }
+    },
+    {
+      "name": "Activities - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipoActividad\": \"NOVEDAD\",\n  \"prioridad\": \"ALTA\",\n  \"descripcion\": \"Actividad creada desde Postman\",\n  \"estado\": \"EN_REVISION\"\n}"
+        },
+        "url": "{{baseUrl}}/activities"
+      }
+    },
+    {
+      "name": "Notifications - Mine",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/notifications/me"
+      }
+    },
+    {
+      "name": "AuditLogs - List (Admin)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/audit-logs?page=1&limit=10"
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" }
+  ]
+}
