@@ -32,7 +32,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             <p><strong>Fecha novedad:</strong> {{ item.fechaNovedad | date: 'short' }}</p>
             <p><strong>Última modificación:</strong> {{ item.fechaModificacion | date: 'short' }}</p>
             <p><strong>Descripción:</strong></p>
-            <p>{{ item.descripcion }}</p>
+            <p class="activity-description-text">{{ item.descripcion }}</p>
           </div>
 
           <div class="info-block">
@@ -74,7 +74,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <ul class="list-clean">
           <li *ngFor="let comment of comments()">
             <strong>{{ comment.nombreUsuario }}</strong>
-            <p>{{ comment.comentario }}</p>
+            <p class="activity-comment-text">{{ comment.comentario }}</p>
             <small>
               {{ comment.createdAt | date: 'short' }}
               <span *ngIf="comment.estadoNuevo"> · Estado: {{ comment.estadoNuevo }}</span>
@@ -308,6 +308,7 @@ export class ActivityDetailPageComponent {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 }
+
 
 
 

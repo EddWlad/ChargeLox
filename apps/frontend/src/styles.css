@@ -275,6 +275,16 @@ textarea:focus {
   margin: 0.5rem 0;
 }
 
+.activity-description-text {
+  font-size: 1.5rem;
+  line-height: 1.6;
+}
+
+.activity-comment-text {
+  font-size: 1.45rem;
+  line-height: 1.6;
+}
+
 .list-clean li small {
   color: var(--muted);
 }
@@ -971,6 +981,7 @@ table td {
 .mini-select.status-select[data-selected='COMPLETADA'] {
   color: #0f7858;
 }
+
 
 
 
