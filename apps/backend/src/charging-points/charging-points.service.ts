@@ -10,6 +10,7 @@ import { AccionAuditoria } from '../common/enums';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { ChargingPoint } from '../database/entities';
 import { ReportsService } from '../reports/reports.service';
+import ExcelJS from 'exceljs';
 import { CreateChargingPointDto } from './dto/create-charging-point.dto';
 import { QueryChargingPointsDto } from './dto/query-charging-points.dto';
 import { UpdateChargingPointDto } from './dto/update-charging-point.dto';
@@ -213,6 +214,49 @@ export class ChargingPointsService {
     });
   }
 
+  async buildPrivateExcel(): Promise<Buffer> {
+    const items = await this.chargingPointsRepository.find({
+      select: ['nombre', 'codigoAsignado', 'serial', 'puk', 'estadoConexion'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ChargeLox';
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet('Puntos de carga');
+    worksheet.columns = [
+      { header: 'nombre', key: 'nombre', width: 32 },
+      { header: 'codigoAsignado', key: 'codigoAsignado', width: 24 },
+      { header: 'serial', key: 'serial', width: 30 },
+      { header: 'puk', key: 'puk', width: 30 },
+      { header: 'estadoConexion', key: 'estadoConexion', width: 20 },
+    ];
+
+    items.forEach((item) => {
+      worksheet.addRow({
+        nombre: item.nombre,
+        codigoAsignado: item.codigoAsignado,
+        serial: item.serial,
+        puk: item.puk,
+        estadoConexion: item.estadoConexion,
+      });
+    });
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E7BE8' },
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'left' };
+
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  }
   async buildPublicListPdf(query: QueryChargingPointsDto): Promise<Buffer> {
     const data = await this.listPublic({ ...query, page: 1, limit: 1000 });
     return this.reportsService.buildChargingPointsListPdf(
@@ -227,3 +271,4 @@ export class ChargingPointsService {
     );
   }
 }
+

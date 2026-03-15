@@ -123,6 +123,16 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </select>
           </label>
           <button type="submit" class="btn btn-primary" [disabled]="loading()">Filtrar</button>
+          <button
+            *ngIf="isAdmin()"
+            type="button"
+            class="btn btn-secondary"
+            (click)="exportExcel()"
+            [disabled]="loading()"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">download</span>
+            Exportar Excel
+          </button>
         </form>
 
         <p class="status ok" *ngIf="successMessage()">{{ successMessage() }}</p>
@@ -330,6 +340,36 @@ export class ChargingPointsPageComponent implements OnInit {
       });
   }
 
+  exportExcel(): void {
+    if (!this.isAdmin() || this.loading()) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
+
+    this.chargingPointsApi
+      .downloadPrivateExcel()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (blob) => {
+          const date = new Date().toISOString().slice(0, 10);
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `charging-points-${date}.xlsx`;
+          link.click();
+          window.URL.revokeObjectURL(url);
+          this.successMessage.set('Archivo Excel descargado correctamente.');
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(
+            error.error?.message ?? 'No fue posible exportar el Excel de puntos.',
+          );
+        },
+      });
+  }
   remove(id: string): void {
     if (!this.isAdmin() || this.loading()) {
       return;
@@ -371,6 +411,8 @@ export class ChargingPointsPageComponent implements OnInit {
     return page * limit >= this.total();
   }
 }
+
+
 
 
 

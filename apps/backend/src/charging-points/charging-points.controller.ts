@@ -94,6 +94,25 @@ export class ChargingPointsController {
   }
 
   @ApiBearerAuth('access-token')
+  @Get('export/excel')
+  @Roles(RolUsuario.ADMINISTRADOR)
+  @ApiOperation({ summary: 'Exporta a Excel todos los puntos para administración.' })
+  async exportExcel(@Res() res: Response) {
+    const excel = await this.chargingPointsService.buildPrivateExcel();
+    const date = new Date().toISOString().slice(0, 10);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="charging-points-${date}.xlsx"`,
+    );
+    res.send(excel);
+  }
+
+  @ApiBearerAuth('access-token')
   @Get(':id')
   @ApiOperation({ summary: 'Detalle privado por id (incluye serial/PUK).' })
   getPrivate(@Param('id', new ParseUUIDPipe()) id: string) {
@@ -171,5 +190,3 @@ export class ChargingPointsController {
     return { message: 'Punto/electrolinera eliminado.' };
   }
 }
-
-

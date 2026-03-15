@@ -53,6 +53,11 @@ export class ChargingPointsApiService {
     return this.http.delete<{ message: string }>(`${API_BASE_URL}/charging-points/${id}`);
   }
 
+  downloadPrivateExcel(): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/charging-points/export/excel`, {
+      responseType: 'blob',
+    });
+  }
   downloadPublicListPdf(): string {
     return `${API_BASE_URL}/charging-points/public/pdf`;
   }
@@ -61,3 +66,4 @@ export class ChargingPointsApiService {
     return `${API_BASE_URL}/charging-points/public/${id}/pdf`;
   }
 }
+
