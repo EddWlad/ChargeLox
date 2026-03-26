@@ -89,13 +89,29 @@ Variables principales:
 - `ACTIVITIES_UPLOAD_DIR`
 - `AVATARS_UPLOAD_DIR`
 - `CHARGING_POINTS_UPLOAD_DIR`
+- `TECHNICAL_EVIDENCE_UPLOAD_DIR`
 - `MAX_FILE_SIZE_BYTES`
 - `ALLOWED_FILE_MIME_TYPES`
+- `TECHNICAL_EVIDENCE_STORAGE` (`auto` | `local` | `cloudinary`)
+- `CLOUDINARY_CLOUD_NAME` (opcional)
+- `CLOUDINARY_API_KEY` (opcional)
+- `CLOUDINARY_API_SECRET` (opcional)
+- `CLOUDINARY_UPLOAD_FOLDER` (opcional)
+
+Notas de despliegue:
+- En producción, configure `TECHNICAL_EVIDENCE_STORAGE=cloudinary` junto con `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`.
+- No suba credenciales reales al repositorio; manténgalas solo en `.env` o variables del servidor.
 
 ## Credenciales de prueba (seed)
 
 - Administrador:
   - `admin@chargelox.com`
+  - `Password123*`
+- Supervisor:
+  - `supervisor1@chargelox.com`
+  - `Password123*`
+- Técnico:
+  - `tecnico1@chargelox.com`
   - `Password123*`
 - Analista:
   - `analista1@chargelox.com`
@@ -112,6 +128,7 @@ Módulos/pantallas disponibles:
 - Turnos de monitoreo
 - Actividades (novedades y seguimientos)
 - Detalle de actividad con comentarios y adjuntos
+- Actividades técnicas de operación (listado, detalle, comentarios, evidencias, historial, PDF)
 - Notificaciones
 - Gestión de usuarios (solo ADMINISTRADOR)
 - Auditoría (solo ADMINISTRADOR)
@@ -145,6 +162,7 @@ Capacidades clave frontend:
 - `notifications`
 - `audit-logs`
 - `reports`
+- `technical-activities`
 
 ## Calidad y build
 
@@ -163,4 +181,3 @@ Frontend (`apps/frontend`):
 
 - Adjuntos guardados localmente (carpetas de `uploads/`) con metadata en DB.
 - Auditoría registra `CREATE/UPDATE/DELETE` en entidades clave con actor y fecha.
-

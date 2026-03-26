@@ -139,7 +139,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -152,16 +152,16 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let point of items()">
-                <td>{{ point.nombre }}</td>
-                <td>{{ point.codigoAsignado }}</td>
-                <td>
+                <td data-label="Nombre">{{ point.nombre }}</td>
+                <td data-label="Código">{{ point.codigoAsignado }}</td>
+                <td data-label="Conexión">
                   <span class="pill" [attr.data-connection]="point.estadoConexion">{{ point.estadoConexion }}</span>
                 </td>
-                <td>
+                <td data-label="Prioridad">
                   <span class="pill" [attr.data-priority]="point.prioridad">{{ point.prioridad }}</span>
                 </td>
-                <td>{{ point.tipo }}</td>
-                <td class="table-actions-col">
+                <td data-label="Tipo">{{ point.tipo }}</td>
+                <td data-label="Acciones" class="table-actions-col">
                   <div class="icon-actions" role="group" aria-label="Acciones de punto de carga">
                     <a
                       class="icon-btn"

@@ -130,8 +130,23 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
   readonly navItems: NavItem[] = [
     { label: 'Dashboard', path: '/app/dashboard', icon: 'dashboard' },
     { label: 'Puntos de Carga', path: '/app/charging-points', icon: 'ev_station' },
-    { label: 'Turnos', path: '/app/shift-logs', icon: 'schedule' },
-    { label: 'Actividades', path: '/app/activities', icon: 'assignment' },
+    {
+      label: 'Turnos',
+      path: '/app/shift-logs',
+      icon: 'schedule',
+      roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA],
+    },
+    {
+      label: 'Actividades',
+      path: '/app/activities',
+      icon: 'assignment',
+      roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA],
+    },
+    {
+      label: 'Operación técnica',
+      path: '/app/technical-activities',
+      icon: 'engineering',
+    },
     { label: 'Notificaciones', path: '/app/notifications', icon: 'notifications' },
     { label: 'Mi Perfil', path: '/app/profile', icon: 'person' },
     {
@@ -200,9 +215,11 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
   }
 
   userRoleLabel(): string {
-    return this.authService.currentUser()?.rol === RolUsuario.ADMINISTRADOR
-      ? 'Panel Administrador'
-      : 'Panel Analista';
+    const role = this.authService.currentUser()?.rol;
+    if (role === RolUsuario.ADMINISTRADOR) return 'Panel Administrador';
+    if (role === RolUsuario.SUPERVISOR) return 'Panel Supervisor';
+    if (role === RolUsuario.TECNICO) return 'Panel Técnico';
+    return 'Panel Analista';
   }
 
   pageTitle(): string {
@@ -211,6 +228,7 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
     if (route.includes('/charging-points')) return 'Puntos de carga y electrolineras';
     if (route.includes('/shift-logs')) return 'Turnos de monitoreo';
     if (route.includes('/activities')) return 'Novedades y seguimientos';
+    if (route.includes('/technical-activities')) return 'Operación técnica de campo';
     if (route.includes('/notifications')) return 'Notificaciones';
     if (route.includes('/profile')) return 'Perfil de usuario';
     if (route.includes('/users')) return 'Gestión de usuarios';

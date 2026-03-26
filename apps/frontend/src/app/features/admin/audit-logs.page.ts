@@ -20,7 +20,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
           <p>Trazabilidad de acciones CREATE/UPDATE/DELETE.</p>
         </header>
 
-        <form [formGroup]="filtersForm" (ngSubmit)="load()" class="filter-bar">
+        <form [formGroup]="filtersForm" (ngSubmit)="load(true)" class="filter-bar">
           <label>
             Entidad
             <input type="text" formControlName="entidad" placeholder="User, ChargingPoint, Activity..." />
@@ -38,7 +38,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Fecha</th>
@@ -51,14 +51,14 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let item of items()">
-                <td>{{ item.createdAt | date: 'short' }}</td>
-                <td>{{ item.usuarioEmail ?? 'Sistema' }}</td>
-                <td>
+                <td data-label="Fecha">{{ item.createdAt | date: 'short' }}</td>
+                <td data-label="Usuario">{{ item.usuarioEmail ?? 'Sistema' }}</td>
+                <td data-label="Acción">
                   <span class="pill" [attr.data-action]="item.accion">{{ item.accion }}</span>
                 </td>
-                <td>{{ item.entidad }}</td>
-                <td class="entity-ref-cell" [title]="item.entidadId">{{ formatEntityId(item.entidadId) }}</td>
-                <td>{{ item.resumenCambio }}</td>
+                <td data-label="Entidad">{{ item.entidad }}</td>
+                <td data-label="Referencia" class="entity-ref-cell" [title]="item.entidadId">{{ formatEntityId(item.entidadId) }}</td>
+                <td data-label="Resumen">{{ item.resumenCambio }}</td>
               </tr>
               <tr *ngIf="items().length === 0">
                 <td colspan="6" class="muted">No hay registros de auditoría para el filtro actual.</td>
@@ -66,6 +66,16 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </tbody>
           </table>
         </div>
+
+        <footer class="pagination" *ngIf="items().length > 0">
+          <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="query.page === 1 || loading()">
+            Anterior
+          </button>
+          <span>Página {{ query.page }} · Total {{ total() }}</span>
+          <button type="button" class="btn btn-secondary" (click)="nextPage()" [disabled]="isLastPage() || loading()">
+            Siguiente
+          </button>
+        </footer>
       </article>
     </section>
   `,
@@ -74,10 +84,15 @@ export class AuditLogsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   readonly items = signal<AuditLog[]>([]);
+  readonly total = signal(0);
   readonly loading = signal(false);
   readonly errorMessage = signal('');
 
   readonly acciones = Object.values(AccionAuditoria);
+  query = {
+    page: 1,
+    limit: 25,
+  };
 
   readonly filtersForm = this.fb.nonNullable.group({
     entidad: [''],
@@ -97,7 +112,11 @@ export class AuditLogsPageComponent implements OnInit {
     return value.length > 12 ? `${value.slice(0, 8)}...` : value;
   }
 
-  load(): void {
+  load(resetPage = false): void {
+    if (resetPage) {
+      this.query.page = 1;
+    }
+
     const raw = this.filtersForm.getRawValue();
 
     this.loading.set(true);
@@ -105,18 +124,39 @@ export class AuditLogsPageComponent implements OnInit {
 
     this.auditLogsApi
       .list({
-        page: 1,
-        limit: 100,
+        page: this.query.page,
+        limit: this.query.limit,
         entidad: raw.entidad.trim() || undefined,
         accion: (raw.accion || undefined) as AccionAuditoria | undefined,
       })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (response) => this.items.set(response.items),
+        next: (response) => {
+          this.items.set(response.items);
+          this.total.set(response.total);
+        },
         error: (error: HttpErrorResponse) => {
           this.errorMessage.set(error.error?.message ?? 'No fue posible cargar el log de auditoría.');
         },
       });
+  }
+
+  prevPage(): void {
+    if ((this.query.page ?? 1) <= 1 || this.loading()) return;
+    this.query.page -= 1;
+    this.load();
+  }
+
+  nextPage(): void {
+    if (this.isLastPage() || this.loading()) return;
+    this.query.page += 1;
+    this.load();
+  }
+
+  isLastPage(): boolean {
+    const page = this.query.page ?? 1;
+    const limit = this.query.limit ?? 25;
+    return page * limit >= this.total();
   }
 }
 

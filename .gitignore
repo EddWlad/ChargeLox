@@ -3,7 +3,17 @@ apps/backend/node_modules/
 apps/frontend/node_modules/
 apps/backend/dist/
 apps/backend/coverage/
+apps/backend/private_uploads/
+apps/frontend/dist/
 uploads/
 *.log
 .env
+.env.*
+!.env.example
+apps/backend/.env
+apps/backend/.env.*
+!apps/backend/.env.example
+apps/frontend/.env
+apps/frontend/.env.*
 apps/frontend/.angular/
+design/changes/AGENTS-*.md

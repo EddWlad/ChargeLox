@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional } from 'class-validator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-export class QueryNotificationsDto {
+export class QueryNotificationsDto extends PaginationDto {
   @ApiPropertyOptional({ description: 'Filtrar por leída true/false.' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => {

@@ -27,7 +27,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
   imports: [CommonModule, ReactiveFormsModule, RouterLink, DatePipe],
   template: `
     <section class="section-stack">
-      <article class="card">
+      <article class="card" *ngIf="canCreateActivity()">
         <header class="section-head compact">
           <h2>Nueva actividad</h2>
           <p>Novedades y seguimientos del turno operativo.</p>
@@ -107,7 +107,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -121,17 +121,17 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let item of items()">
-                <td>{{ item.tipoActividad }}</td>
-                <td>{{ item.descripcion }}</td>
-                <td>
+                <td data-label="Tipo">{{ item.tipoActividad }}</td>
+                <td data-label="Descripción">{{ item.descripcion }}</td>
+                <td data-label="Estado">
                   <span class="pill" [attr.data-activity-state]="item.estado">{{ item.estado }}</span>
                 </td>
-                <td>
+                <td data-label="Prioridad">
                   <span class="pill" [attr.data-priority]="item.prioridad">{{ item.prioridad }}</span>
                 </td>
-                <td>{{ item.creadoPorNombre }}</td>
-                <td>{{ item.createdAt | date: 'short' }}</td>
-                <td class="table-actions-col">
+                <td data-label="Creado por">{{ item.creadoPorNombre }}</td>
+                <td data-label="Fecha">{{ item.createdAt | date: 'short' }}</td>
+                <td data-label="Acciones" class="table-actions-col">
                   <div class="icon-actions wrap" role="group" aria-label="Acciones de actividad">
                     <a
                       class="icon-btn"
@@ -152,7 +152,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                       <span class="material-symbols-outlined" aria-hidden="true">edit</span>
                     </button>
 
-                    <select #statusSelect class="mini-select status-select" aria-label="Seleccionar estado" [value]="item.estado" [attr.data-selected]="statusSelect.value">
+                    <select #statusSelect class="mini-select status-select" aria-label="Seleccionar estado" [value]="item.estado" [attr.data-selected]="item.estado">
                       <option *ngFor="let status of estadoActividadOptions" [value]="status">{{ status }}</option>
                     </select>
 
@@ -292,6 +292,13 @@ export class ActivitiesPageComponent implements OnInit {
     return this.authService.currentUser()?.rol === RolUsuario.ADMINISTRADOR;
   }
 
+  canCreateActivity(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.ANALISTA,
+    ]);
+  }
+
   loadRelatedData(): void {
     this.chargingPointsApi.listPrivate({ page: 1, limit: 100 }).subscribe({
       next: (response) => this.chargingPoints.set(response.items),
@@ -335,6 +342,10 @@ export class ActivitiesPageComponent implements OnInit {
   }
 
   create(): void {
+    if (!this.canCreateActivity()) {
+      return;
+    }
+
     if (this.createForm.invalid || this.loading()) {
       this.createForm.markAllAsTouched();
       return;

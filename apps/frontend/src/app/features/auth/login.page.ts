@@ -64,11 +64,6 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <p class="status ok" *ngIf="successMessage()">{{ successMessage() }}</p>
         <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
-        <footer class="auth-hint">
-          <small>
-            Credencial seed admin: <strong>admin@chargelox.com</strong> / <strong>Password123*</strong>
-          </small>
-        </footer>
       </div>
     </section>
   `,

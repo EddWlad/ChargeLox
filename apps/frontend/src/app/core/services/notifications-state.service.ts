@@ -10,8 +10,8 @@ export class NotificationsStateService {
   constructor(private readonly notificationsApi: NotificationsApiService) {}
 
   refreshUnreadCount(): void {
-    this.notificationsApi.listMine(false).subscribe({
-      next: (items) => this.unreadCount.set(items.length),
+    this.notificationsApi.listMine({ leida: false, page: 1, limit: 1 }).subscribe({
+      next: (response) => this.unreadCount.set(response.total),
       error: () => {
         // Fail silently to avoid noisy UI when a background refresh fails.
       },

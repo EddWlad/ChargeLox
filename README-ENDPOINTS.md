@@ -19,10 +19,14 @@ Crear un environment `ChargeLox Local` con:
 
 - `baseUrl` = `http://localhost:3000`
 - `tokenAdmin` = *(vacío al inicio)*
+- `tokenSupervisor` = *(vacío al inicio)*
+- `tokenTecnico` = *(vacío al inicio)*
 - `tokenAnalista` = *(vacío al inicio)*
 - `userId` = *(vacío)*
 - `chargingPointId` = *(vacío)*
 - `activityId` = *(vacío)*
+- `technicalActivityId` = *(vacío)*
+- `technicalEvidenceId` = *(vacío)*
 - `attachmentId` = *(vacío)*
 - `notificationId` = *(vacío)*
 
@@ -104,6 +108,38 @@ Crear un environment `ChargeLox Local` con:
 - URL: `{{baseUrl}}/auth/me`
 - Auth: Bearer `{{tokenAdmin}}` o `{{tokenAnalista}}`
 - Esperado: `200` con datos del usuario actual
+
+### 4.5 Login SUPERVISOR
+
+- Método: `POST`
+- URL: `{{baseUrl}}/auth/login`
+- Body JSON:
+
+```json
+{
+  "email": "supervisor1@chargelox.com",
+  "password": "Password123*"
+}
+```
+
+- Esperado: `200` con `accessToken`
+- Guardar token en `tokenSupervisor`.
+
+### 4.6 Login TECNICO
+
+- Método: `POST`
+- URL: `{{baseUrl}}/auth/login`
+- Body JSON:
+
+```json
+{
+  "email": "tecnico1@chargelox.com",
+  "password": "Password123*"
+}
+```
+
+- Esperado: `200` con `accessToken`
+- Guardar token en `tokenTecnico`.
 
 ---
 
@@ -563,6 +599,141 @@ Crear un environment `ChargeLox Local` con:
 - `GET {{baseUrl}}/reports/health`
 - Auth: Bearer `{{tokenAnalista}}` o `{{tokenAdmin}}`
 - Esperado: `200` con `{ "status": "ok" }`
+
+---
+
+## 13.2) Módulo Technical Activities
+
+### 13.2.1 Listar técnicos asignables (admin/supervisor)
+
+- `GET {{baseUrl}}/technical-activities/lookups/technicians`
+- Auth: Bearer `{{tokenSupervisor}}` o `{{tokenAdmin}}`
+- Esperado: `200`
+
+### 13.2.2 Crear actividad técnica (admin/supervisor)
+
+- `POST {{baseUrl}}/technical-activities`
+- Auth: Bearer `{{tokenSupervisor}}`
+- Body:
+
+```json
+{
+  "tipoActividad": "INSTALACION",
+  "titulo": "Instalación punto piloto",
+  "descripcion": "Instalación inicial del equipo en sitio.",
+  "prioridad": "ALTA",
+  "tecnicoAsignadoId": "REEMPLAZAR_CON_ID_TECNICO",
+  "fechaProgramada": "2026-03-25",
+  "ubicacion": "Quito - Norte",
+  "observacionesIniciales": "Validar acometida y conectividad."
+}
+```
+
+- Esperado: `201`/`200`
+- Guardar `id` en `technicalActivityId`.
+
+### 13.2.3 Listado global (admin/supervisor/analista)
+
+- `GET {{baseUrl}}/technical-activities?page=1&limit=10`
+- Auth: Bearer `{{tokenSupervisor}}` o `{{tokenAnalista}}`
+- Esperado: `200`
+
+### 13.2.4 Mis actividades (técnico)
+
+- `GET {{baseUrl}}/technical-activities/mine?page=1&limit=10`
+- Auth: Bearer `{{tokenTecnico}}`
+- Esperado: `200`
+
+### 13.2.5 Detalle
+
+- `GET {{baseUrl}}/technical-activities/{{technicalActivityId}}`
+- Auth: Bearer `{{tokenTecnico}}` / `{{tokenSupervisor}}` / `{{tokenAnalista}}`
+- Esperado: `200` (según permisos del rol)
+
+### 13.2.6 Actualizar datos técnicos
+
+- `PATCH {{baseUrl}}/technical-activities/{{technicalActivityId}}`
+- Auth: Bearer `{{tokenTecnico}}` (solo campos de ejecución) o `{{tokenSupervisor}}`
+- Body (técnico ejemplo):
+
+```json
+{
+  "fechaEjecucion": "2026-03-25",
+  "diagnostico": "Equipo operativo en sitio.",
+  "hallazgos": "Sin anomalías críticas.",
+  "accionesRealizadas": "Instalación y pruebas de carga.",
+  "estadoFinal": "OPERATIVO"
+}
+```
+
+- Esperado: `200`
+
+### 13.2.7 Cambiar estado
+
+- `PATCH {{baseUrl}}/technical-activities/{{technicalActivityId}}/status`
+- Auth: Bearer `{{tokenTecnico}}` o `{{tokenSupervisor}}`
+- Body:
+
+```json
+{
+  "estado": "EN_PROCESO"
+}
+```
+
+- Esperado: `200`
+
+### 13.2.8 Comentar
+
+- `POST {{baseUrl}}/technical-activities/{{technicalActivityId}}/comments`
+- Auth: Bearer `{{tokenTecnico}}` o `{{tokenSupervisor}}`
+- Body:
+
+```json
+{
+  "comentario": "Se inicia intervención técnica."
+}
+```
+
+- Esperado: `201`/`200`
+
+### 13.2.9 Listar comentarios
+
+- `GET {{baseUrl}}/technical-activities/{{technicalActivityId}}/comments`
+- Auth: Bearer con rol permitido sobre la actividad
+- Esperado: `200`
+
+### 13.2.10 Subir evidencia
+
+- `POST {{baseUrl}}/technical-activities/{{technicalActivityId}}/evidences/upload`
+- Auth: Bearer `{{tokenTecnico}}` o `{{tokenSupervisor}}`
+- Body: form-data
+  - `file` (imagen/documento)
+- Esperado: `201`/`200`
+- Guardar `id` en `technicalEvidenceId`.
+
+### 13.2.11 Listar evidencias
+
+- `GET {{baseUrl}}/technical-activities/{{technicalActivityId}}/evidences`
+- Auth: Bearer con rol permitido
+- Esperado: `200`
+
+### 13.2.12 Descargar/visualizar evidencia
+
+- `GET {{baseUrl}}/technical-activities/evidences/file/{{technicalEvidenceId}}`
+- Auth: Bearer con rol permitido
+- Esperado: descarga directa o redirección segura a Cloudinary (si aplica).
+
+### 13.2.13 Historial técnico
+
+- `GET {{baseUrl}}/technical-activities/{{technicalActivityId}}/history`
+- Auth: Bearer con rol permitido
+- Esperado: `200`
+
+### 13.2.14 PDF técnico
+
+- `GET {{baseUrl}}/technical-activities/{{technicalActivityId}}/pdf`
+- Auth: Bearer `{{tokenTecnico}}`/`{{tokenSupervisor}}`/`{{tokenAnalista}}`/`{{tokenAdmin}}`
+- Esperado: descarga del reporte PDF técnico.
 
 ---
 

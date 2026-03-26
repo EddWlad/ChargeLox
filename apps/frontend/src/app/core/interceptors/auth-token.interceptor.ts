@@ -19,8 +19,11 @@ export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(request).pipe(
     catchError((error) => {
-      if (error?.status === 401 && authService.isAuthenticated()) {
-        authService.clearSession(false);
+      const isAuthEndpoint =
+        req.url.includes('/api/auth/login') || req.url.includes('/api/auth/register');
+
+      if (error?.status === 401 && authService.isAuthenticated() && !isAuthEndpoint) {
+        authService.clearSession();
       }
       return throwError(() => error);
     }),

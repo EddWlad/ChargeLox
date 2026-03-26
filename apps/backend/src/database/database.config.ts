@@ -9,6 +9,10 @@ import {
   ChargingPoint,
   Notification,
   ShiftLog,
+  TechnicalActivity,
+  TechnicalActivityComment,
+  TechnicalActivityEvidence,
+  TechnicalActivityHistory,
   User,
 } from './entities';
 
@@ -31,6 +35,10 @@ export const getDataSourceOptions = (): DataSourceOptions => ({
     Attachment,
     Notification,
     AuditLog,
+    TechnicalActivity,
+    TechnicalActivityComment,
+    TechnicalActivityEvidence,
+    TechnicalActivityHistory,
   ],
   migrations: ['dist/database/migrations/*.js'],
   migrationsTableName: 'migraciones',

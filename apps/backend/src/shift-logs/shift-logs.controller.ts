@@ -11,6 +11,7 @@ import { ShiftLogsService } from './shift-logs.service';
 
 @ApiTags('Turnos de monitoreo')
 @ApiBearerAuth('access-token')
+@Roles(RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA)
 @Controller('shift-logs')
 export class ShiftLogsController {
   constructor(private readonly shiftLogsService: ShiftLogsService) {}

@@ -33,7 +33,21 @@ async function seedUsers() {
       rol: RolUsuario.ADMINISTRADOR,
       activo: true,
     },
-    ...Array.from({ length: 9 }).map((_, index) => ({
+    ...Array.from({ length: 2 }).map((_, index) => ({
+      nombres: `Supervisor${index + 1}`,
+      apellidos: 'Operaciones',
+      email: `supervisor${index + 1}@chargelox.com`,
+      rol: RolUsuario.SUPERVISOR,
+      activo: true,
+    })),
+    ...Array.from({ length: 4 }).map((_, index) => ({
+      nombres: `Tecnico${index + 1}`,
+      apellidos: 'Campo',
+      email: `tecnico${index + 1}@chargelox.com`,
+      rol: RolUsuario.TECNICO,
+      activo: true,
+    })),
+    ...Array.from({ length: 3 }).map((_, index) => ({
       nombres: `Analista${index + 1}`,
       apellidos: 'Monitoreo',
       email: `analista${index + 1}@chargelox.com`,
@@ -219,6 +233,12 @@ async function runSeed() {
 
     console.log('Seed completado correctamente.');
     console.log('Credenciales admin: admin@chargelox.com / Password123*');
+    console.log(
+      'Credencial supervisor ejemplo: supervisor1@chargelox.com / Password123*',
+    );
+    console.log(
+      'Credencial técnico ejemplo: tecnico1@chargelox.com / Password123*',
+    );
     console.log(
       'Credencial analista ejemplo: analista1@chargelox.com / Password123*',
     );

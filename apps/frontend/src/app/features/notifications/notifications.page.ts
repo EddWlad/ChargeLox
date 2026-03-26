@@ -22,7 +22,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
           <p>Filtra por estado y marca lectura masiva.</p>
         </header>
 
-        <form [formGroup]="filtersForm" (ngSubmit)="load()" class="filter-bar">
+        <form [formGroup]="filtersForm" (ngSubmit)="load(true)" class="filter-bar">
           <label>
             Estado
             <select formControlName="leida">
@@ -80,6 +80,16 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
           </li>
           <li *ngIf="notifications().length === 0" class="muted">No hay notificaciones para el filtro actual.</li>
         </ul>
+
+        <footer class="pagination" *ngIf="notifications().length > 0">
+          <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="query.page === 1 || loading()">
+            Anterior
+          </button>
+          <span>Página {{ query.page }} · Total {{ total() }}</span>
+          <button type="button" class="btn btn-secondary" (click)="nextPage()" [disabled]="isLastPage() || loading()">
+            Siguiente
+          </button>
+        </footer>
       </article>
     </section>
   `,
@@ -89,10 +99,16 @@ export class NotificationsPageComponent implements OnInit {
 
   readonly notifications = signal<Notification[]>([]);
   readonly selectedSet = signal<Set<string>>(new Set<string>());
+  readonly total = signal(0);
 
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+
+  query = {
+    page: 1,
+    limit: 10,
+  };
 
   readonly filtersForm = this.fb.nonNullable.group({
     leida: [''],
@@ -114,7 +130,11 @@ export class NotificationsPageComponent implements OnInit {
     return [...this.selectedSet()];
   }
 
-  load(): void {
+  load(resetPage = false): void {
+    if (resetPage) {
+      this.query.page = 1;
+    }
+
     const value = this.filtersForm.getRawValue().leida;
     const leida = value === '' ? undefined : value === 'true';
 
@@ -122,12 +142,17 @@ export class NotificationsPageComponent implements OnInit {
     this.errorMessage.set('');
 
     this.notificationsApi
-      .listMine(leida)
+      .listMine({
+        leida,
+        page: this.query.page,
+        limit: this.query.limit,
+      })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (notifications) => {
-          this.notifications.set(notifications);
-          this.notificationsState.setUnreadCountFromNotifications(notifications);
+        next: (response) => {
+          this.notifications.set(response.items);
+          this.total.set(response.total);
+          this.notificationsState.refreshUnreadCount();
           this.selectedSet.set(new Set<string>());
         },
         error: (error: HttpErrorResponse) => {
@@ -141,9 +166,46 @@ export class NotificationsPageComponent implements OnInit {
       this.markRead(notification.id, false);
     }
 
-    if (notification.referenciaId) {
-      void this.router.navigate(['/app/activities', notification.referenciaId]);
+    const route = this.resolveNotificationRoute(notification);
+    if (route) {
+      const isTechnicalAssignment =
+        notification.tipo === 'TECHNICAL_ACTIVITY_ASSIGNED';
+      void this.router.navigate(
+        route,
+        isTechnicalAssignment
+          ? { queryParams: { autoObserve: '1' } }
+          : undefined,
+      );
     }
+  }
+
+  private resolveNotificationRoute(notification: Notification): string[] | null {
+    if (!notification.referenciaId) {
+      return null;
+    }
+
+    const technicalTypes = new Set([
+      'TECHNICAL_ACTIVITY_ASSIGNED',
+      'TECHNICAL_ACTIVITY_STATUS_CHANGED',
+      'TECHNICAL_ACTIVITY_COMMENT_CREATED',
+      'TECHNICAL_ACTIVITY_EVIDENCE_CREATED',
+    ]);
+
+    if (technicalTypes.has(notification.tipo)) {
+      return ['/app/technical-activities', notification.referenciaId];
+    }
+
+    const activityTypes = new Set([
+      'ACTIVITY_CREATED',
+      'ACTIVITY_ASSIGNED',
+      'ACTIVITY_COMMENT_CREATED',
+    ]);
+
+    if (activityTypes.has(notification.tipo)) {
+      return ['/app/activities', notification.referenciaId];
+    }
+
+    return null;
   }
 
   toggleSelection(id: string, event: Event): void {
@@ -177,7 +239,7 @@ export class NotificationsPageComponent implements OnInit {
               item.id === id ? { ...item, leida: true } : item,
             );
             this.notifications.set(updated);
-            this.notificationsState.setUnreadCountFromNotifications(updated);
+            this.notificationsState.refreshUnreadCount();
           }
         },
         error: (error: HttpErrorResponse) => {
@@ -208,6 +270,30 @@ export class NotificationsPageComponent implements OnInit {
           this.errorMessage.set(error.error?.message ?? 'No fue posible marcar notificaciones.');
         },
       });
+  }
+
+  prevPage(): void {
+    if ((this.query.page ?? 1) <= 1 || this.loading()) {
+      return;
+    }
+
+    this.query.page -= 1;
+    this.load();
+  }
+
+  nextPage(): void {
+    if (this.isLastPage() || this.loading()) {
+      return;
+    }
+
+    this.query.page += 1;
+    this.load();
+  }
+
+  isLastPage(): boolean {
+    const page = this.query.page ?? 1;
+    const limit = this.query.limit ?? 10;
+    return page * limit >= this.total();
   }
 }
 

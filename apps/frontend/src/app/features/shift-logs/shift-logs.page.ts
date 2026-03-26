@@ -44,7 +44,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         </header>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Fecha</th>
@@ -56,13 +56,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let item of mine()">
-                <td>{{ item.fechaTurno }}</td>
-                <td>{{ item.horaInicio | date: 'short' }}</td>
-                <td>{{ item.horaFin ? (item.horaFin | date: 'short') : '---' }}</td>
-                <td>
+                <td data-label="Fecha">{{ item.fechaTurno }}</td>
+                <td data-label="Inicio">{{ item.horaInicio | date: 'short' }}</td>
+                <td data-label="Fin">{{ item.horaFin ? (item.horaFin | date: 'short') : '---' }}</td>
+                <td data-label="Estado">
                   <span class="pill" [attr.data-shift]="item.estadoTurno">{{ item.estadoTurno }}</span>
                 </td>
-                <td>{{ item.totalHoras ?? '---' }}</td>
+                <td data-label="Total horas">{{ item.totalHoras ?? '---' }}</td>
               </tr>
               <tr *ngIf="mine().length === 0">
                 <td colspan="5" class="muted">No hay turnos registrados.</td>
@@ -89,7 +89,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         </form>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Usuario</th>
@@ -101,11 +101,11 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let item of all()">
-                <td>{{ userLabel(item.usuarioId) }}</td>
-                <td>{{ item.fechaTurno }}</td>
-                <td>{{ item.horaInicio | date: 'short' }}</td>
-                <td>{{ item.horaFin ? (item.horaFin | date: 'short') : '---' }}</td>
-                <td>
+                <td data-label="Usuario">{{ userLabel(item.usuarioId) }}</td>
+                <td data-label="Fecha">{{ item.fechaTurno }}</td>
+                <td data-label="Inicio">{{ item.horaInicio | date: 'short' }}</td>
+                <td data-label="Fin">{{ item.horaFin ? (item.horaFin | date: 'short') : '---' }}</td>
+                <td data-label="Estado">
                   <span class="pill" [attr.data-shift]="item.estadoTurno">{{ item.estadoTurno }}</span>
                 </td>
               </tr>

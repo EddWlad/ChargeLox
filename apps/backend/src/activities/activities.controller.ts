@@ -24,11 +24,13 @@ import { UpdateActivityDto } from './dto/update-activity.dto';
 
 @ApiTags('Actividades (Novedades y Seguimientos)')
 @ApiBearerAuth('access-token')
+@Roles(RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA)
 @Controller('activities')
 export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) {}
 
   @Post()
+  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA)
   @ApiOperation({ summary: 'Crea una actividad (novedad o seguimiento).' })
   create(
     @Body() dto: CreateActivityDto,

@@ -1,5 +1,7 @@
 export enum RolUsuario {
   ADMINISTRADOR = 'ADMINISTRADOR',
+  SUPERVISOR = 'SUPERVISOR',
+  TECNICO = 'TECNICO',
   ANALISTA = 'ANALISTA',
 }
 
@@ -39,6 +41,22 @@ export enum EstadoActividad {
 export enum EstadoTurno {
   ABIERTO = 'ABIERTO',
   CERRADO = 'CERRADO',
+}
+
+export enum TipoActividadTecnica {
+  INSTALACION = 'INSTALACION',
+  MANTENIMIENTO_PREVENTIVO = 'MANTENIMIENTO_PREVENTIVO',
+  MANTENIMIENTO_CORRECTIVO = 'MANTENIMIENTO_CORRECTIVO',
+  VISITA_TECNICA = 'VISITA_TECNICA',
+  REVISION_TECNICA = 'REVISION_TECNICA',
+}
+
+export enum EstadoActividadTecnica {
+  ASIGNADA = 'ASIGNADA',
+  EN_PROCESO = 'EN_PROCESO',
+  COMPLETADA = 'COMPLETADA',
+  OBSERVADA = 'OBSERVADA',
+  CANCELADA = 'CANCELADA',
 }
 
 export enum AccionAuditoria {
@@ -262,4 +280,130 @@ export interface AuditLogQuery {
 
 export interface ApiMessage {
   message: string;
+}
+
+export interface TechnicalActivity {
+  id: string;
+  tipoActividad: TipoActividadTecnica;
+  titulo: string;
+  descripcion: string;
+  prioridad: Prioridad;
+  estado: EstadoActividadTecnica;
+  creadoPorId: string;
+  creadoPorNombre: string;
+  tecnicoAsignadoId: string;
+  supervisorAsignadorId: string;
+  fechaProgramada: string;
+  fechaLimite: string | null;
+  fechaEjecucion: string | null;
+  fechaInstalacion: string | null;
+  ubicacion: string | null;
+  chargingPointId: string | null;
+  codigoAsignado: string | null;
+  serial: string | null;
+  puk: string | null;
+  marca: string | null;
+  modelo: string | null;
+  estadoInicial: string | null;
+  caracteristicasTecnicas: string | null;
+  diagnostico: string | null;
+  hallazgos: string | null;
+  accionesRealizadas: string | null;
+  componentesIntervenidos: string | null;
+  recomendaciones: string | null;
+  estadoFinal: string | null;
+  observacionesIniciales: string | null;
+  observacionesEjecucion: string | null;
+  observacionesCierre: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tecnicoAsignado?: Pick<User, 'id' | 'nombres' | 'email' | 'rol'> | null;
+  supervisorAsignador?: Pick<User, 'id' | 'nombres' | 'email' | 'rol'> | null;
+  chargingPoint?: Pick<ChargingPoint, 'id' | 'nombre' | 'codigoAsignado'> | null;
+}
+
+export interface TechnicalActivityQuery {
+  page?: number;
+  limit?: number;
+  tipoActividad?: TipoActividadTecnica | '';
+  estado?: EstadoActividadTecnica | '';
+  prioridad?: Prioridad | '';
+  tecnicoAsignadoId?: string;
+  chargingPointId?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+}
+
+export interface CreateTechnicalActivityRequest {
+  tipoActividad: TipoActividadTecnica;
+  titulo: string;
+  descripcion?: string;
+  prioridad: Prioridad;
+  estado?: EstadoActividadTecnica;
+  tecnicoAsignadoId: string;
+  fechaProgramada: string;
+  fechaLimite?: string;
+  fechaEjecucion?: string;
+  fechaInstalacion?: string;
+  ubicacion?: string;
+  chargingPointId?: string;
+  codigoAsignado?: string;
+  serial?: string;
+  puk?: string;
+  marca?: string;
+  modelo?: string;
+  estadoInicial?: string;
+  caracteristicasTecnicas?: string;
+  diagnostico?: string;
+  hallazgos?: string;
+  accionesRealizadas?: string;
+  componentesIntervenidos?: string;
+  recomendaciones?: string;
+  estadoFinal?: string;
+  observacionesIniciales?: string;
+  observacionesEjecucion?: string;
+  observacionesCierre?: string;
+}
+
+export interface UpdateTechnicalActivityRequest
+  extends Partial<CreateTechnicalActivityRequest> {}
+
+export interface TechnicalActivityComment {
+  id: string;
+  actividadTecnicaId: string;
+  usuarioId: string;
+  nombreUsuario: string;
+  comentario: string;
+  estadoNuevo: EstadoActividadTecnica | null;
+  createdAt: string;
+}
+
+export interface CreateTechnicalActivityCommentRequest {
+  comentario: string;
+  estadoNuevo?: EstadoActividadTecnica;
+}
+
+export interface TechnicalActivityEvidence {
+  id: string;
+  actividadTecnicaId: string;
+  subidoPorId: string;
+  nombreOriginal: string;
+  mimeType: string;
+  tamano: number;
+  storageProvider: 'LOCAL' | 'CLOUDINARY';
+  cloudinaryUrl: string | null;
+  createdAt: string;
+  downloadUrl: string;
+}
+
+export interface TechnicalActivityHistory {
+  id: string;
+  actividadTecnicaId: string;
+  actorId: string | null;
+  actorNombre: string | null;
+  accion: string;
+  descripcion: string;
+  estadoAnterior: EstadoActividadTecnica | null;
+  estadoNuevo: EstadoActividadTecnica | null;
+  createdAt: string;
 }

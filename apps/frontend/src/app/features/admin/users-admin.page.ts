@@ -55,7 +55,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
       </article>
 
       <article class="card">
-        <form [formGroup]="searchForm" (ngSubmit)="load()" class="filter-bar">
+        <form [formGroup]="searchForm" (ngSubmit)="load(true)" class="filter-bar">
           <label>
             Buscar
             <input type="text" formControlName="search" placeholder="Nombre o email" />
@@ -67,7 +67,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
         <div class="table-wrap">
-          <table>
+          <table class="mobile-card-table">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -79,17 +79,17 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </thead>
             <tbody>
               <tr *ngFor="let user of users()">
-                <td>{{ user.nombres }} {{ user.apellidos ?? '' }}</td>
-                <td>{{ user.email }}</td>
-                <td>
+                <td data-label="Nombre">{{ user.nombres }} {{ user.apellidos ?? '' }}</td>
+                <td data-label="Email">{{ user.email }}</td>
+                <td data-label="Rol">
                   <span class="pill" [attr.data-role]="user.rol">{{ user.rol }}</span>
                 </td>
-                <td>
+                <td data-label="Estado">
                   <span class="pill" [attr.data-user-state]="user.activo ? 'ACTIVO' : 'INACTIVO'">
                     {{ user.activo ? 'Activo' : 'Inactivo' }}
                   </span>
                 </td>
-                <td class="table-actions-col">
+                <td data-label="Acciones" class="table-actions-col">
                   <div class="icon-actions" role="group" aria-label="Acciones de usuario">
                     <button
                       type="button"
@@ -119,6 +119,16 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             </tbody>
           </table>
         </div>
+
+        <footer class="pagination" *ngIf="users().length > 0">
+          <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="query.page === 1 || loading()">
+            Anterior
+          </button>
+          <span>Página {{ query.page }} · Total {{ total() }}</span>
+          <button type="button" class="btn btn-secondary" (click)="nextPage()" [disabled]="isLastPage() || loading()">
+            Siguiente
+          </button>
+        </footer>
       </article>
 
       <article class="card" *ngIf="editingId()">
@@ -166,12 +176,17 @@ export class UsersAdminPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   readonly users = signal<User[]>([]);
+  readonly total = signal(0);
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly editingId = signal<string | null>(null);
 
   readonly rolOptions = Object.values(RolUsuario);
+  query = {
+    page: 1,
+    limit: 20,
+  };
 
   readonly searchForm = this.fb.nonNullable.group({
     search: [''],
@@ -202,17 +217,28 @@ export class UsersAdminPageComponent implements OnInit {
     this.load();
   }
 
-  load(): void {
+  load(resetPage = false): void {
+    if (resetPage) {
+      this.query.page = 1;
+    }
+
     const search = this.searchForm.getRawValue().search.trim();
 
     this.loading.set(true);
     this.errorMessage.set('');
 
     this.usersApi
-      .list({ page: 1, limit: 50, search: search || undefined })
+      .list({
+        page: this.query.page,
+        limit: this.query.limit,
+        search: search || undefined,
+      })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (response) => this.users.set(response.items),
+        next: (response) => {
+          this.users.set(response.items);
+          this.total.set(response.total);
+        },
         error: (error: HttpErrorResponse) => {
           this.errorMessage.set(error.error?.message ?? 'No fue posible cargar usuarios.');
         },
@@ -243,7 +269,7 @@ export class UsersAdminPageComponent implements OnInit {
             rol: RolUsuario.ANALISTA,
             activo: true,
           });
-          this.load();
+          this.load(true);
         },
         error: (error: HttpErrorResponse) => {
           this.errorMessage.set(error.error?.message ?? 'No fue posible crear usuario.');
@@ -314,6 +340,24 @@ export class UsersAdminPageComponent implements OnInit {
           this.errorMessage.set(error.error?.message ?? 'No fue posible eliminar usuario.');
         },
       });
+  }
+
+  prevPage(): void {
+    if ((this.query.page ?? 1) <= 1 || this.loading()) return;
+    this.query.page -= 1;
+    this.load();
+  }
+
+  nextPage(): void {
+    if (this.isLastPage() || this.loading()) return;
+    this.query.page += 1;
+    this.load();
+  }
+
+  isLastPage(): boolean {
+    const page = this.query.page ?? 1;
+    const limit = this.query.limit ?? 20;
+    return page * limit >= this.total();
   }
 }
 

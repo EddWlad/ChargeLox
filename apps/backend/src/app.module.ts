@@ -17,6 +17,7 @@ import { getDataSourceOptions } from './database/database.config';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { ShiftLogsModule } from './shift-logs/shift-logs.module';
+import { TechnicalActivitiesModule } from './technical-activities/technical-activities.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { UsersModule } from './users/users.module';
     NotificationsModule,
     AuditLogsModule,
     ReportsModule,
+    TechnicalActivitiesModule,
   ],
   controllers: [AppController],
   providers: [

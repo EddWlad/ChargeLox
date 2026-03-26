@@ -3,8 +3,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { Activity, EstadoTurno, Notification, ShiftLog } from '../../core/models/domain.models';
+import { Activity, EstadoTurno, Notification, RolUsuario, ShiftLog } from '../../core/models/domain.models';
 import { ActivitiesApiService } from '../../core/services/activities-api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { NotificationsApiService } from '../../core/services/notifications-api.service';
 import { ShiftLogsApiService } from '../../core/services/shift-logs-api.service';
 
@@ -16,7 +17,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
   imports: [CommonModule, RouterLink, DatePipe],
   template: `
     <section class="section-stack">
-      <article class="card dashboard-turno">
+      <article class="card dashboard-turno" *ngIf="canViewShiftModule()">
         <div>
           <h2>Estado del turno</h2>
           <p *ngIf="activeShift(); else noShift">
@@ -40,7 +41,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
       <p class="status error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
       <section class="grid cards-2">
-        <article class="card">
+        <article class="card" *ngIf="canViewActivitiesModule()">
           <header class="section-head compact">
             <h3>Actividades Prioritarias</h3>
             <a routerLink="/app/activities">Ver todas</a>
@@ -90,6 +91,7 @@ export class DashboardPageComponent implements OnInit {
     private readonly activitiesApi: ActivitiesApiService,
     private readonly notificationsApi: NotificationsApiService,
     private readonly shiftLogsApi: ShiftLogsApiService,
+    private readonly authService: AuthService,
   ) {
     enableAutoDismiss([this.errorMessage]);
   }
@@ -101,29 +103,41 @@ export class DashboardPageComponent implements OnInit {
   loadDashboard(): void {
     this.errorMessage.set('');
 
-    this.activitiesApi.listPrioritarias().subscribe({
-      next: (items) => this.prioritarias.set(items.slice(0, 4)),
-      error: (error: HttpErrorResponse) => {
-        this.errorMessage.set(error.error?.message ?? 'No fue posible cargar actividades prioritarias.');
-      },
-    });
+    if (this.canViewActivitiesModule()) {
+      this.activitiesApi.listPrioritarias().subscribe({
+        next: (items) => this.prioritarias.set(items.slice(0, 4)),
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(error.error?.message ?? 'No fue posible cargar actividades prioritarias.');
+        },
+      });
+    } else {
+      this.prioritarias.set([]);
+    }
 
-    this.notificationsApi.listMine(undefined).subscribe({
-      next: (items) => this.notifications.set(items.slice(0, 4)),
+    this.notificationsApi.listMine({ page: 1, limit: 4 }).subscribe({
+      next: (response) => this.notifications.set(response.items),
       error: (error: HttpErrorResponse) => {
         this.errorMessage.set(error.error?.message ?? 'No fue posible cargar notificaciones.');
       },
     });
 
-    this.shiftLogsApi.listMine({ page: 1, limit: 20 }).subscribe({
-      next: (response) => this.shiftLogs.set(response.items),
-      error: (error: HttpErrorResponse) => {
-        this.errorMessage.set(error.error?.message ?? 'No fue posible cargar turnos.');
-      },
-    });
+    if (this.canViewShiftModule()) {
+      this.shiftLogsApi.listMine({ page: 1, limit: 20 }).subscribe({
+        next: (response) => this.shiftLogs.set(response.items),
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(error.error?.message ?? 'No fue posible cargar turnos.');
+        },
+      });
+    } else {
+      this.shiftLogs.set([]);
+    }
   }
 
   startShift(): void {
+    if (!this.canViewShiftModule()) {
+      return;
+    }
+
     this.loadingShift.set(true);
     this.errorMessage.set('');
 
@@ -139,6 +153,10 @@ export class DashboardPageComponent implements OnInit {
   }
 
   finishShift(): void {
+    if (!this.canViewShiftModule()) {
+      return;
+    }
+
     this.loadingShift.set(true);
     this.errorMessage.set('');
 
@@ -151,6 +169,20 @@ export class DashboardPageComponent implements OnInit {
           this.errorMessage.set(error.error?.message ?? 'No fue posible finalizar turno.');
         },
       });
+  }
+
+  canViewActivitiesModule(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.ANALISTA,
+    ]);
+  }
+
+  canViewShiftModule(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.ANALISTA,
+    ]);
   }
 }
 

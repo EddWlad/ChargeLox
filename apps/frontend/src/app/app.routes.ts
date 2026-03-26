@@ -14,6 +14,8 @@ import {
 import { PublicHomePageComponent } from './features/public-home/public-home.page';
 import { ProfilePageComponent } from './features/profile/profile.page';
 import { ShiftLogsPageComponent } from './features/shift-logs/shift-logs.page';
+import { TechnicalActivityDetailPageComponent } from './features/technical-activities/technical-activity-detail.page';
+import { TechnicalActivitiesPageComponent } from './features/technical-activities/technical-activities.page';
 import { authGuard } from './core/guards/auth.guard';
 import { roleGuard } from './core/guards/role.guard';
 import { RolUsuario } from './core/models/domain.models';
@@ -46,9 +48,50 @@ export const routes: Routes = [
         path: 'charging-points/:id',
         component: ChargingPointDetailPageComponent,
       },
-      { path: 'shift-logs', component: ShiftLogsPageComponent },
-      { path: 'activities', component: ActivitiesPageComponent },
-      { path: 'activities/:id', component: ActivityDetailPageComponent },
+      {
+        path: 'shift-logs',
+        component: ShiftLogsPageComponent,
+        canActivate: [roleGuard],
+        data: { roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA] },
+      },
+      {
+        path: 'activities',
+        component: ActivitiesPageComponent,
+        canActivate: [roleGuard],
+        data: { roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA] },
+      },
+      {
+        path: 'activities/:id',
+        component: ActivityDetailPageComponent,
+        canActivate: [roleGuard],
+        data: { roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA] },
+      },
+      {
+        path: 'technical-activities',
+        component: TechnicalActivitiesPageComponent,
+        canActivate: [roleGuard],
+        data: {
+          roles: [
+            RolUsuario.ADMINISTRADOR,
+            RolUsuario.SUPERVISOR,
+            RolUsuario.TECNICO,
+            RolUsuario.ANALISTA,
+          ],
+        },
+      },
+      {
+        path: 'technical-activities/:id',
+        component: TechnicalActivityDetailPageComponent,
+        canActivate: [roleGuard],
+        data: {
+          roles: [
+            RolUsuario.ADMINISTRADOR,
+            RolUsuario.SUPERVISOR,
+            RolUsuario.TECNICO,
+            RolUsuario.ANALISTA,
+          ],
+        },
+      },
       { path: 'notifications', component: NotificationsPageComponent },
       {
         path: 'users',

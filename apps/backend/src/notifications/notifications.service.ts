@@ -45,12 +45,22 @@ export class NotificationsService {
       usuarioDestinoId: userId,
       ...(query.leida === undefined ? {} : { leida: query.leida }),
     };
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
 
-    return this.notificationsRepository.find({
+    const [items, total] = await this.notificationsRepository.findAndCount({
       where,
       order: { createdAt: 'DESC' },
-      take: 100,
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      items,
+      page,
+      limit,
+      total,
+    };
   }
 
   async markAsRead(userId: string, notificationId: string) {

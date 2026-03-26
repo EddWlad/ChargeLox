@@ -11,6 +11,8 @@ function ensureUploadsDirectories(): void {
     process.env.ACTIVITIES_UPLOAD_DIR ?? 'uploads/activities',
     process.env.AVATARS_UPLOAD_DIR ?? 'uploads/avatars',
     process.env.CHARGING_POINTS_UPLOAD_DIR ?? 'uploads/charging-points',
+    process.env.TECHNICAL_EVIDENCE_UPLOAD_DIR ??
+      'private_uploads/technical-evidences',
   ];
 
   dirs.forEach((dir) => {

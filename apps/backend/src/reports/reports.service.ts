@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import * as http from 'http';
+import * as https from 'https';
+import { isAbsolute, join } from 'path';
 import PDFDocument from 'pdfkit';
 
 type PrintableRecord = Record<string, unknown>;
@@ -172,6 +177,105 @@ export class ReportsService {
     }
 
     return raw.replaceAll('_', ' ').trim();
+  }
+
+  private isImageMimeType(value: unknown): boolean {
+    const mimeType = this.stringify(value).toLowerCase();
+    return mimeType.startsWith('image/');
+  }
+
+  private async downloadBinaryFromUrl(
+    url: string,
+    redirectDepth = 0,
+  ): Promise<Buffer | null> {
+    if (!url || redirectDepth > 3) {
+      return null;
+    }
+
+    const client = url.startsWith('https://') ? https : http;
+
+    return new Promise((resolve) => {
+      const request = client.get(url, (response) => {
+        const statusCode = response.statusCode ?? 0;
+        const location = response.headers.location;
+
+        if (
+          statusCode >= 300 &&
+          statusCode < 400 &&
+          location &&
+          redirectDepth < 3
+        ) {
+          response.resume();
+          const nextUrl = location.startsWith('http')
+            ? location
+            : new URL(location, url).toString();
+          this.downloadBinaryFromUrl(nextUrl, redirectDepth + 1)
+            .then(resolve)
+            .catch(() => resolve(null));
+          return;
+        }
+
+        if (statusCode !== 200) {
+          response.resume();
+          resolve(null);
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk) => chunks.push(chunk as Buffer));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+      });
+
+      request.setTimeout(6000, () => {
+        request.destroy();
+        resolve(null);
+      });
+
+      request.on('error', () => resolve(null));
+    });
+  }
+
+  private async resolveTechnicalEvidencePreview(
+    evidences: PrintableRecord[],
+  ): Promise<{ image: Buffer; fileName: string } | null> {
+    for (const evidence of evidences) {
+      if (!this.isImageMimeType(evidence.mimeType)) {
+        continue;
+      }
+
+      const fileName = this.stringify(evidence.nombreOriginal) || 'Evidencia';
+      const cloudinaryUrl = this.stringify(evidence.cloudinaryUrl);
+      if (cloudinaryUrl.startsWith('http')) {
+        const remoteImage = await this.downloadBinaryFromUrl(cloudinaryUrl);
+        if (remoteImage && remoteImage.length > 0) {
+          return { image: remoteImage, fileName };
+        }
+      }
+
+      const localRoute = this.stringify(evidence.rutaArchivo);
+      if (!localRoute) {
+        continue;
+      }
+
+      const absolutePath = isAbsolute(localRoute)
+        ? localRoute
+        : join(process.cwd(), localRoute);
+
+      if (!existsSync(absolutePath)) {
+        continue;
+      }
+
+      try {
+        const localImage = await readFile(absolutePath);
+        if (localImage.length > 0) {
+          return { image: localImage, fileName };
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
   }
 
   private createDocument(): PdfDocument {
@@ -356,14 +460,23 @@ export class ReportsService {
         .fillColor('#b1bccb')
         .font('Helvetica-Bold')
         .fontSize(7.2)
-        .text(options.left, left, textY, { width: 170 });
+        .text(options.left, left, textY, {
+          width: 170,
+          lineBreak: false,
+          ellipsis: true,
+        });
 
       if (options.center) {
         doc
           .fillColor('#b1bccb')
           .font('Helvetica-Bold')
           .fontSize(7.2)
-          .text(options.center, left + 170, textY, { width: 170, align: 'center' });
+          .text(options.center, left + 170, textY, {
+            width: 170,
+            align: 'center',
+            lineBreak: false,
+            ellipsis: true,
+          });
       }
 
       const rightLabel = options.rightLabel ?? `PÁGINA ${index + 1} DE ${pageCount}`;
@@ -371,7 +484,12 @@ export class ReportsService {
         .fillColor('#b1bccb')
         .font('Helvetica-Bold')
         .fontSize(7.2)
-        .text(rightLabel, right - 160, textY, { width: 160, align: 'right' });
+        .text(rightLabel, right - 160, textY, {
+          width: 160,
+          align: 'right',
+          lineBreak: false,
+          ellipsis: true,
+        });
     }
   }
 
@@ -1149,6 +1267,376 @@ export class ReportsService {
       left: 'Este documento es un reporte oficial del sistema ChargeLox.',
       center: `ID de Transacción: ${this.stringify(activity.id)}`,
       rightLabel: 'CHARGELOX BY EDISON MOROCHO',
+    });
+    return this.toBuffer(doc);
+  }
+
+  async buildTechnicalActivityPdf(payload: {
+    activity: PrintableRecord;
+    comments: PrintableRecord[];
+    evidences: PrintableRecord[];
+  }): Promise<Buffer> {
+    const doc = this.createDocument();
+    this.drawClassicHeader(
+      doc,
+      'Reporte Técnico',
+      'Operaciones de Campo - ChargeLox',
+    );
+
+    const activity = payload.activity;
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const width = right - left;
+    const columnWidth = (width - 20) / 2;
+    const ensureTechnicalSection = (title: string, requiredHeight = 72) => {
+      if (this.ensureSpace(doc, requiredHeight)) {
+        this.drawClassicHeader(
+          doc,
+          'Reporte Técnico',
+          'Operaciones de Campo - ChargeLox',
+        );
+      }
+      this.drawSectionTitle(doc, title);
+    };
+    const evidencePreview = await this.resolveTechnicalEvidencePreview(
+      payload.evidences,
+    );
+
+    ensureTechnicalSection('Resumen de actividad técnica', 260);
+
+    let y = doc.y;
+    const drawMetric = (label: string, value: string, x: number) => {
+      doc
+        .fillColor('#63748c')
+        .font('Helvetica-Bold')
+        .fontSize(8.9)
+        .text(label, x, y, { width: columnWidth - 8 });
+      doc
+        .fillColor(COLORS.textStrong)
+        .font('Helvetica-Bold')
+        .fontSize(11.5)
+        .text(value || '-', x, y + 12, {
+          width: columnWidth - 8,
+        });
+    };
+
+    drawMetric('TÍTULO', this.stringify(activity.titulo), left);
+    const previewX = left + columnWidth + 20;
+    if (evidencePreview) {
+      const previewLabelY = y;
+      const previewCardY = previewLabelY + 12;
+      const previewCardWidth = columnWidth - 8;
+      const previewCardHeight = 58;
+
+      doc
+        .fillColor('#63748c')
+        .font('Helvetica-Bold')
+        .fontSize(8.9)
+        .text('EVIDENCIA', previewX, previewLabelY, {
+          width: previewCardWidth,
+        });
+
+      doc.save();
+      doc
+        .roundedRect(previewX, previewCardY, previewCardWidth, previewCardHeight, 4)
+        .fill(COLORS.panelSoft);
+      doc.restore();
+
+      try {
+        doc.image(evidencePreview.image, previewX + 4, previewCardY + 4, {
+          fit: [previewCardWidth - 8, previewCardHeight - 8],
+          align: 'center',
+          valign: 'center',
+        });
+      } catch {
+        doc
+          .fillColor(COLORS.textMuted)
+          .font('Helvetica')
+          .fontSize(8.5)
+          .text('Vista previa no disponible', previewX + 8, previewCardY + 24, {
+            width: previewCardWidth - 16,
+            align: 'center',
+          });
+      }
+
+      doc
+        .fillColor(COLORS.textMuted)
+        .font('Helvetica')
+        .fontSize(7.6)
+        .text(
+          evidencePreview.fileName,
+          previewX,
+          previewCardY + previewCardHeight + 2,
+          {
+            width: previewCardWidth,
+            lineBreak: false,
+            ellipsis: true,
+          },
+        );
+      y += 82;
+    } else {
+      drawMetric('EVIDENCIA', 'Sin imagen de evidencia', previewX);
+      y += 48;
+    }
+
+    drawMetric('ESTADO', this.formatEnum(activity.estado), left);
+    drawMetric(
+      'PRIORIDAD',
+      this.formatEnum(activity.prioridad),
+      left + columnWidth + 20,
+    );
+    y += 48;
+
+    const tecnico = (activity.tecnicoAsignado as PrintableRecord | undefined) ?? {};
+    const supervisor =
+      (activity.supervisorAsignador as PrintableRecord | undefined) ?? {};
+    const chargingPoint = (activity.chargingPoint as PrintableRecord | undefined) ?? {};
+
+    drawMetric('TÉCNICO ASIGNADO', this.stringify(tecnico.nombres), left);
+    drawMetric('SUPERVISOR', this.stringify(supervisor.nombres), left + columnWidth + 20);
+    y += 48;
+
+    drawMetric(
+      'FECHA PROGRAMADA',
+      this.formatDate(activity.fechaProgramada),
+      left,
+    );
+    drawMetric(
+      'PUNTO RELACIONADO',
+      this.stringify(chargingPoint.nombre) || 'No asociado',
+      left + columnWidth + 20,
+    );
+    y += 56;
+
+    doc.y = y;
+    doc
+      .fillColor('#63748c')
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text('DESCRIPCIÓN', left, doc.y, { width });
+
+    const descriptionY = doc.y + 6;
+    const description = this.stringify(activity.descripcion);
+    const descriptionHeight = Math.max(
+      36,
+      doc.heightOfString(description, { width: width - 24 }) + 14,
+    );
+    doc.save();
+    doc.roundedRect(left, descriptionY, width, descriptionHeight, 4).fill(COLORS.panel);
+    doc.restore();
+    doc
+      .fillColor(COLORS.text)
+      .font('Helvetica')
+      .fontSize(10.5)
+      .text(description || '-', left + 12, descriptionY + 10, {
+        width: width - 24,
+      });
+    doc.y = descriptionY + descriptionHeight + 14;
+
+    ensureTechnicalSection('Registro técnico');
+    const technicalItems: Array<[string, string]> = [
+      ['Ubicación', this.stringify(activity.ubicacion) || '-'],
+      ['Fecha límite', this.formatDate(activity.fechaLimite) || '-'],
+      ['Fecha ejecución', this.formatDate(activity.fechaEjecucion) || '-'],
+      ['Fecha instalación', this.formatDate(activity.fechaInstalacion) || '-'],
+      ['Código asignado', this.stringify(activity.codigoAsignado) || '-'],
+      ['Serial', this.stringify(activity.serial) || '-'],
+      ['PUK', this.stringify(activity.puk) || '-'],
+      ['Marca / Modelo', `${this.stringify(activity.marca) || '-'} / ${this.stringify(activity.modelo) || '-'}`],
+      ['Estado inicial', this.stringify(activity.estadoInicial) || '-'],
+      ['Estado final', this.stringify(activity.estadoFinal) || '-'],
+      ['Diagnóstico', this.stringify(activity.diagnostico) || '-'],
+      ['Hallazgos', this.stringify(activity.hallazgos) || '-'],
+      ['Acciones realizadas', this.stringify(activity.accionesRealizadas) || '-'],
+      [
+        'Componentes intervenidos',
+        this.stringify(activity.componentesIntervenidos) || '-',
+      ],
+      ['Recomendaciones', this.stringify(activity.recomendaciones) || '-'],
+      [
+        'Características técnicas',
+        this.stringify(activity.caracteristicasTecnicas) || '-',
+      ],
+      [
+        'Observaciones iniciales',
+        this.stringify(activity.observacionesIniciales) || '-',
+      ],
+      [
+        'Observaciones ejecución',
+        this.stringify(activity.observacionesEjecucion) || '-',
+      ],
+      ['Observaciones cierre', this.stringify(activity.observacionesCierre) || '-'],
+    ];
+
+    technicalItems.forEach(([label, value]) => {
+      const textHeight = doc.heightOfString(value, { width: width - 24 });
+      const cardHeight = Math.max(26, textHeight + 14);
+
+      if (this.ensureSpace(doc, cardHeight + 7)) {
+        this.drawClassicHeader(
+          doc,
+          'Reporte Técnico',
+          'Operaciones de Campo - ChargeLox',
+        );
+        this.drawSectionTitle(doc, 'Registro técnico');
+      }
+
+      const cardY = doc.y;
+      doc.save();
+      doc.roundedRect(left, cardY, width, cardHeight, 3).fill(COLORS.panelSoft);
+      doc.restore();
+      doc
+        .fillColor('#63748c')
+        .font('Helvetica-Bold')
+        .fontSize(8.8)
+        .text(label.toUpperCase(), left + 10, cardY + 8, {
+          width: 190,
+          lineBreak: false,
+        });
+      doc
+        .fillColor(COLORS.text)
+        .font('Helvetica')
+        .fontSize(9.6)
+        .text(value, left + 200, cardY + 8, {
+          width: width - 210,
+        });
+      doc.y = cardY + cardHeight + 4;
+    });
+
+    ensureTechnicalSection('Comentarios');
+    if (payload.comments.length === 0) {
+      doc
+        .fillColor(COLORS.textMuted)
+        .font('Helvetica')
+        .fontSize(10)
+        .text('Sin comentarios registrados.', left, doc.y + 6);
+      doc.y += 24;
+    } else {
+      payload.comments.forEach((comment) => {
+        const commentText = this.stringify(comment.comentario);
+        const commentHeight = Math.max(
+          34,
+          doc.heightOfString(commentText, { width: width - 24 }) + 16,
+        );
+        if (this.ensureSpace(doc, commentHeight + 8)) {
+          this.drawClassicHeader(
+            doc,
+            'Reporte Técnico',
+            'Operaciones de Campo - ChargeLox',
+          );
+          this.drawSectionTitle(doc, 'Comentarios');
+        }
+
+        const cardY = doc.y;
+        doc.save();
+        doc.roundedRect(left, cardY, width, commentHeight, 4).fill(COLORS.panelSoft);
+        doc.restore();
+        doc
+          .fillColor(COLORS.textStrong)
+          .font('Helvetica-Bold')
+          .fontSize(9.8)
+          .text(this.stringify(comment.nombreUsuario) || 'Usuario', left + 10, cardY + 9, {
+            width: 200,
+            lineBreak: false,
+          });
+        doc
+          .fillColor(COLORS.textMuted)
+          .font('Helvetica')
+          .fontSize(8.3)
+          .text(this.formatDateTime(comment.createdAt), right - 170, cardY + 10, {
+            width: 160,
+            align: 'right',
+          });
+        doc
+          .fillColor(COLORS.text)
+          .font('Helvetica')
+          .fontSize(9.8)
+          .text(commentText, left + 10, cardY + 25, {
+            width: width - 20,
+          });
+
+        if (comment.estadoNuevo) {
+          this.drawBadge(
+            doc,
+            this.formatEnum(comment.estadoNuevo),
+            left + width - 124,
+            cardY + commentHeight - 20,
+            this.resolveBadgeColors('activity', this.stringify(comment.estadoNuevo)),
+          );
+        }
+
+        doc.y = cardY + commentHeight + 6;
+      });
+    }
+
+    ensureTechnicalSection('Evidencias');
+    if (payload.evidences.length === 0) {
+      doc
+        .fillColor(COLORS.textMuted)
+        .font('Helvetica')
+        .fontSize(10)
+        .text('Sin evidencias registradas.', left, doc.y + 6);
+      doc.y += 24;
+    } else {
+      const widths = [250, 116, 92, width - 458];
+      const headerY = doc.y;
+      doc.save();
+      doc.roundedRect(left, headerY, width, 24, 3).fill(COLORS.panel);
+      doc.restore();
+      ['ARCHIVO', 'TIPO', 'TAMAÑO', 'ORIGEN'].forEach((label, index) => {
+        const x = left + widths.slice(0, index).reduce((sum, current) => sum + current, 0);
+        doc
+          .fillColor('#7b8da5')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text(label, x + 8, headerY + 8, {
+            width: widths[index] - 10,
+            lineBreak: false,
+          });
+      });
+      doc.y += 28;
+
+      payload.evidences.forEach((evidence, index) => {
+        const rowHeight = 26;
+        if (this.ensureSpace(doc, rowHeight + 4)) {
+          this.drawClassicHeader(
+            doc,
+            'Reporte Técnico',
+            'Operaciones de Campo - ChargeLox',
+          );
+          this.drawSectionTitle(doc, 'Evidencias');
+        }
+
+        const yRow = doc.y;
+        const bg = index % 2 === 0 ? COLORS.bg : COLORS.panelSoft;
+        doc.save();
+        doc.roundedRect(left, yRow, width, rowHeight, 2).fill(bg);
+        doc.restore();
+
+        const values = [
+          this.stringify(evidence.nombreOriginal),
+          this.stringify(evidence.mimeType),
+          this.formatBytes(evidence.tamano),
+          this.formatEnum(evidence.storageProvider),
+        ];
+        values.forEach((value, valueIndex) => {
+          const x = left + widths.slice(0, valueIndex).reduce((sum, current) => sum + current, 0);
+          doc
+            .fillColor(COLORS.text)
+            .font('Helvetica')
+            .fontSize(9.1)
+            .text(value, x + 8, yRow + 8.5, {
+              width: widths[valueIndex] - 10,
+              lineBreak: false,
+            });
+        });
+        doc.y = yRow + rowHeight + 2;
+      });
+    }
+
+    this.drawFooter(doc, {
+      left: 'ChargeLox - Reporte técnico oficial',
+      center: 'Operaciones de Campo',
     });
     return this.toBuffer(doc);
   }
