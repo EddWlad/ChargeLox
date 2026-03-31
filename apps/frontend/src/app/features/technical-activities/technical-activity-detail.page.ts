@@ -744,7 +744,19 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   downloadPdf(): void {
     this.technicalApi.downloadPdf(this.activityId).subscribe({
       next: (blob) => {
-        this.saveBlobAsFile(blob, `reporte-tecnico-${this.activityId}.pdf`);
+        const title = this.activity()?.titulo ?? 'actividad-tecnica';
+        const safeTitle = title
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9-_ ]/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .toLowerCase();
+
+        this.saveBlobAsFile(
+          blob,
+          `reporte-tecnico-${safeTitle || 'actividad-tecnica'}.pdf`,
+        );
       },
       error: (error: HttpErrorResponse) => {
         this.errorMessage.set(

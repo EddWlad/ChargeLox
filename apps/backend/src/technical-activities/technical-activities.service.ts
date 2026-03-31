@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import ExcelJS from 'exceljs';
 import { existsSync } from 'fs';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
@@ -337,6 +338,28 @@ export class TechnicalActivitiesService {
     }
   }
 
+  private ensureValidDateRange(
+    fechaDesde?: string,
+    fechaHasta?: string,
+  ): void {
+    if (!fechaDesde || !fechaHasta) {
+      return;
+    }
+
+    const from = new Date(fechaDesde);
+    const to = new Date(fechaHasta);
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw new BadRequestException('Rango de fechas inválido.');
+    }
+
+    if (from.getTime() > to.getTime()) {
+      throw new BadRequestException(
+        'La fecha desde no puede ser mayor que la fecha hasta.',
+      );
+    }
+  }
+
   private async notifyAssignment(
     activity: TechnicalActivity,
     actor: AuthenticatedUser,
@@ -620,6 +643,112 @@ export class TechnicalActivitiesService {
       limit,
       total,
     };
+  }
+
+  async buildExcel(
+    query: QueryTechnicalActivitiesDto,
+    actor: AuthenticatedUser,
+  ): Promise<Buffer> {
+    if (!this.canListGlobal(actor)) {
+      throw new ForbiddenException(
+        'No tiene permisos para exportar actividades técnicas.',
+      );
+    }
+
+    this.ensureValidDateRange(query.fechaDesde, query.fechaHasta);
+
+    const qb = this.buildBaseDetailsQuery().orderBy('ta.createdAt', 'DESC');
+
+    if (query.tipoActividad) {
+      qb.andWhere('ta.tipoActividad = :tipoActividad', {
+        tipoActividad: query.tipoActividad,
+      });
+    }
+
+    if (query.estado) {
+      qb.andWhere('ta.estado = :estado', {
+        estado: query.estado,
+      });
+    }
+
+    if (query.prioridad) {
+      qb.andWhere('ta.prioridad = :prioridad', {
+        prioridad: query.prioridad,
+      });
+    }
+
+    if (query.tecnicoAsignadoId) {
+      qb.andWhere('ta.tecnicoAsignadoId = :tecnicoAsignadoId', {
+        tecnicoAsignadoId: query.tecnicoAsignadoId,
+      });
+    }
+
+    if (query.chargingPointId) {
+      qb.andWhere('ta.chargingPointId = :chargingPointId', {
+        chargingPointId: query.chargingPointId,
+      });
+    }
+
+    if (query.fechaDesde) {
+      qb.andWhere('ta.fechaProgramada >= :fechaDesde', {
+        fechaDesde: query.fechaDesde,
+      });
+    }
+
+    if (query.fechaHasta) {
+      qb.andWhere('ta.fechaProgramada <= :fechaHasta', {
+        fechaHasta: query.fechaHasta,
+      });
+    }
+
+    const items = await qb.getMany();
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ChargeLox';
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet('Actividades técnicas');
+    worksheet.columns = [
+      { header: 'titulo', key: 'titulo', width: 40 },
+      { header: 'tipoActividad', key: 'tipoActividad', width: 26 },
+      { header: 'estado', key: 'estado', width: 18 },
+      { header: 'prioridad', key: 'prioridad', width: 16 },
+      { header: 'tecnicoAsignado', key: 'tecnicoAsignado', width: 28 },
+      { header: 'supervisorAsignador', key: 'supervisorAsignador', width: 28 },
+      { header: 'fechaProgramada', key: 'fechaProgramada', width: 18 },
+      { header: 'puntoRelacionado', key: 'puntoRelacionado', width: 32 },
+      { header: 'createdAt', key: 'createdAt', width: 22 },
+      { header: 'updatedAt', key: 'updatedAt', width: 22 },
+    ];
+
+    items.forEach((item) => {
+      worksheet.addRow({
+        titulo: item.titulo,
+        tipoActividad: item.tipoActividad,
+        estado: item.estado,
+        prioridad: item.prioridad,
+        tecnicoAsignado: item.tecnicoAsignado?.nombres ?? '-',
+        supervisorAsignador: item.supervisorAsignador?.nombres ?? '-',
+        fechaProgramada: item.fechaProgramada,
+        puntoRelacionado: item.chargingPoint?.nombre ?? '-',
+        createdAt: item.createdAt?.toISOString() ?? '',
+        updatedAt: item.updatedAt?.toISOString() ?? '',
+      });
+    });
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E7BE8' },
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'left' };
+
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   }
 
   async findOne(id: string, actor: AuthenticatedUser) {

@@ -123,7 +123,28 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
               <option *ngFor="let user of technicians()" [value]="user.id">{{ user.nombres }}</option>
             </select>
           </label>
-          <button type="submit" class="btn btn-secondary" [disabled]="loading()">Filtrar</button>
+          <label *ngIf="canExportExcel()">
+            Fecha desde
+            <input type="date" formControlName="fechaDesde" />
+          </label>
+          <label *ngIf="canExportExcel()">
+            Fecha hasta
+            <input type="date" formControlName="fechaHasta" />
+          </label>
+          <div class="technical-filter-actions">
+            <button type="submit" class="btn btn-secondary" [disabled]="loading()">Filtrar</button>
+            <button
+              *ngIf="canExportExcel()"
+              type="button"
+              class="icon-btn technical-excel-icon-btn"
+              (click)="downloadExcel()"
+              [disabled]="loading()"
+              aria-label="Descargar Excel técnico"
+              title="Descargar Excel técnico"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
+            </button>
+          </div>
         </form>
 
         <p class="status ok" *ngIf="successMessage()">{{ successMessage() }}</p>
@@ -201,6 +222,8 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     estado: [''],
     prioridad: [''],
     tecnicoAsignadoId: [''],
+    fechaDesde: [''],
+    fechaHasta: [''],
   });
 
   readonly createForm = this.fb.nonNullable.group({
@@ -245,6 +268,13 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     return !this.authService.hasRole(RolUsuario.TECNICO);
   }
 
+  canExportExcel(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.SUPERVISOR,
+    ]);
+  }
+
   private isTechnician(): boolean {
     return this.authService.hasRole(RolUsuario.TECNICO);
   }
@@ -267,12 +297,18 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     }
 
     const filters = this.filtersForm.getRawValue();
+    if (!this.validateDateRange(filters.fechaDesde, filters.fechaHasta)) {
+      return;
+    }
+
     this.query = {
       ...this.query,
       tipoActividad: filters.tipoActividad as TipoActividadTecnica | '',
       estado: filters.estado as EstadoActividadTecnica | '',
       prioridad: filters.prioridad as Prioridad | '',
       tecnicoAsignadoId: filters.tecnicoAsignadoId || undefined,
+      fechaDesde: filters.fechaDesde || undefined,
+      fechaHasta: filters.fechaHasta || undefined,
     };
 
     this.loading.set(true);
@@ -344,6 +380,81 @@ export class TechnicalActivitiesPageComponent implements OnInit {
           );
         },
       });
+  }
+
+  downloadExcel(): void {
+    if (!this.canExportExcel() || this.loading()) {
+      return;
+    }
+
+    const filters = this.filtersForm.getRawValue();
+    if (!this.validateDateRange(filters.fechaDesde, filters.fechaHasta)) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
+
+    this.technicalApi
+      .downloadExcel({
+        fechaDesde: filters.fechaDesde || undefined,
+        fechaHasta: filters.fechaHasta || undefined,
+      })
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (blob) => {
+          this.saveBlobAsFile(
+            blob,
+            `technical-activities-${new Date().toISOString().slice(0, 10)}.xlsx`,
+          );
+          this.successMessage.set('Reporte Excel generado correctamente.');
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(
+            error.error?.message ?? 'No fue posible descargar el reporte Excel.',
+          );
+        },
+      });
+  }
+
+  private validateDateRange(fechaDesde?: string, fechaHasta?: string): boolean {
+    if (!fechaDesde || !fechaHasta) {
+      return true;
+    }
+
+    const from = new Date(fechaDesde);
+    const to = new Date(fechaHasta);
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      this.errorMessage.set('El rango de fechas no es válido.');
+      return false;
+    }
+
+    if (from.getTime() > to.getTime()) {
+      this.errorMessage.set(
+        'La fecha desde no puede ser mayor que la fecha hasta.',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  private saveBlobAsFile(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      anchor.remove();
+    }, 15000);
   }
 
   prevPage(): void {

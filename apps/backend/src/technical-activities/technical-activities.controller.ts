@@ -85,6 +85,31 @@ export class TechnicalActivitiesController {
     return this.technicalActivitiesService.listMine(actor, query);
   }
 
+  @Get('export/excel')
+  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.SUPERVISOR)
+  @ApiOperation({
+    summary:
+      'Exporta Excel de actividades técnicas (supervisor/admin) con filtro opcional por fecha programada.',
+  })
+  async exportExcel(
+    @Query() query: QueryTechnicalActivitiesDto,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const excel = await this.technicalActivitiesService.buildExcel(query, actor);
+    const date = new Date().toISOString().slice(0, 10);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="technical-activities-${date}.xlsx"`,
+    );
+    res.send(excel);
+  }
+
   @Get('evidences/file/:evidenceId')
   @ApiOperation({ summary: 'Descarga/visualiza evidencia técnica por id.' })
   async downloadEvidence(

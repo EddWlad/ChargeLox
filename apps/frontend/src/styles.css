@@ -655,6 +655,20 @@ th {
   gap: 1.2rem;
 }
 
+.notification-card {
+  align-items: flex-start;
+}
+
+.notification-card .checkbox-line {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-card .checkbox-line p,
+.notification-card .checkbox-line small {
+  overflow-wrap: anywhere;
+}
+
 .notification-read {
   opacity: 0.7;
 }
@@ -684,6 +698,19 @@ th {
   justify-self: center;
   align-self: center;
   padding-inline: 1.8rem;
+}
+
+.technical-excel-icon-btn {
+  width: 4rem;
+  height: 4rem;
+  padding: 0;
+  justify-self: start;
+}
+
+.technical-filter-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
 }
 
 @media (max-width: 1100px) {
@@ -827,6 +854,32 @@ th {
 
   .mobile-card-table td.muted::before {
     content: none;
+  }
+
+  .notification-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notification-card .inline-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .notification-card .icon-btn {
+    margin-left: auto;
+  }
+
+  .technical-excel-icon-btn {
+    justify-self: start;
+  }
+
+  .technical-filter-actions {
+    width: 100%;
+  }
+
+  .technical-filter-actions .btn-secondary {
+    flex: 1 1 auto;
   }
 }
 

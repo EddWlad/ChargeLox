@@ -142,4 +142,14 @@ export class TechnicalActivitiesApiService {
       responseType: 'blob',
     });
   }
+
+  downloadExcel(filters?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+  }): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/technical-activities/export/excel`, {
+      params: buildHttpParams((filters ?? {}) as Record<string, unknown>),
+      responseType: 'blob',
+    });
+  }
 }
