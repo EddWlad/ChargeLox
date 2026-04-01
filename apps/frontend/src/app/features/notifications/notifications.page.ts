@@ -67,7 +67,10 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
               <span>
                 <strong>{{ item.titulo }}</strong>
                 <p>{{ item.mensaje }}</p>
-                <small>{{ item.createdAt | date: 'short' }} · {{ item.tipo }}</small>
+                <small>
+                  {{ item.createdAt | date: 'short' }} ·
+                  {{ formatNotificationType(item.tipo) }}
+                </small>
               </span>
             </label>
 
@@ -294,6 +297,10 @@ export class NotificationsPageComponent implements OnInit {
     const page = this.query.page ?? 1;
     const limit = this.query.limit ?? 10;
     return page * limit >= this.total();
+  }
+
+  formatNotificationType(type: string): string {
+    return type.replaceAll('_', ' ');
   }
 }
 

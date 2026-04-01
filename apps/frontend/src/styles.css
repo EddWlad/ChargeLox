@@ -664,9 +664,19 @@ th {
   min-width: 0;
 }
 
+.notification-card .checkbox-line > span {
+  min-width: 0;
+  display: block;
+}
+
 .notification-card .checkbox-line p,
 .notification-card .checkbox-line small {
   overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.notification-card .checkbox-line small {
+  display: block;
 }
 
 .notification-read {
