@@ -305,7 +305,10 @@ export class ActivitiesPageComponent implements OnInit {
     });
 
     this.usersApi.list({ page: 1, limit: 100 }).subscribe({
-      next: (response) => this.users.set(response.items),
+      next: (response) =>
+        this.users.set(
+          response.items.filter((user) => user.rol === RolUsuario.ANALISTA),
+        ),
     });
   }
 

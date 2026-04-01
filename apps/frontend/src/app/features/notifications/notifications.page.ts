@@ -58,10 +58,11 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             [attr.aria-label]="'Abrir notificación: ' + item.titulo"
             [title]="item.referenciaId ? 'Abrir actividad relacionada' : 'Notificación informativa'"
           >
-            <label class="checkbox-line" (click)="$event.stopPropagation()">
+            <div class="checkbox-line">
               <input
                 type="checkbox"
                 [checked]="selectedSet().has(item.id)"
+                (click)="$event.stopPropagation()"
                 (change)="toggleSelection(item.id, $event)"
               />
               <span>
@@ -72,7 +73,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                   {{ formatNotificationType(item.tipo) }}
                 </small>
               </span>
-            </label>
+            </div>
 
             <div class="inline-actions" (click)="$event.stopPropagation()">
               <span *ngIf="item.referenciaId" class="pill" data-action="UPDATE">Con referencia</span>
