@@ -6,7 +6,12 @@ apps/backend/coverage/
 apps/backend/private_uploads/
 apps/frontend/dist/
 uploads/
+.cache/
 *.log
+.tmp
+*.tmp
+*.bak
+*.old
 .env
 .env.*
 !.env.example
@@ -16,4 +21,6 @@ apps/backend/.env.*
 apps/frontend/.env
 apps/frontend/.env.*
 apps/frontend/.angular/
-design/changes/AGENTS-*.md
+design/
+.DS_Store
+Thumbs.db

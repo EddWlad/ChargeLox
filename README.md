@@ -99,6 +99,7 @@ Variables principales:
 - `CLOUDINARY_UPLOAD_FOLDER` (opcional)
 
 Notas de despliegue:
+
 - En producción, configure `TECHNICAL_EVIDENCE_STORAGE=cloudinary` junto con `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`.
 - No suba credenciales reales al repositorio; manténgalas solo en `.env` o variables del servidor.
 
@@ -111,11 +112,14 @@ Notas de despliegue:
   - `supervisor1@chargelox.com`
   - `Password123*`
 - Técnico:
-  - `tecnico1@chargelox.com`
-  - `Password123*`
+  - `benjamin@chargelox.com`
+  - `123456`
 - Analista:
-  - `analista1@chargelox.com`
-  - `Password123*`
+  - `edison.morocho@inpsercom.com`
+  - `123456`
+-Gestor de visitas
+  - `katty@chargelox.com`
+  - `123456`
 
 ## Frontend implementado
 

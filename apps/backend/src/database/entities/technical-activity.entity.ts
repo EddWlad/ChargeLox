@@ -9,8 +9,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import {
+  EstadoPermisoAcceso,
   EstadoActividadTecnica,
   Prioridad,
+  TipoInfraestructuraTecnica,
   TipoActividadTecnica,
 } from '../../common/enums';
 import { ChargingPoint } from './charging-point.entity';
@@ -42,6 +44,71 @@ export class TechnicalActivity {
     default: EstadoActividadTecnica.ASIGNADA,
   })
   estado: EstadoActividadTecnica;
+
+  @Column({
+    name: 'infrastructure_type',
+    type: 'enum',
+    enum: TipoInfraestructuraTecnica,
+    default: TipoInfraestructuraTecnica.PUNTO_CARGA,
+  })
+  infrastructureType: TipoInfraestructuraTecnica;
+
+  @Column({
+    name: 'requires_access_permit',
+    type: 'boolean',
+    default: false,
+  })
+  requiresAccessPermit: boolean;
+
+  @Column({
+    name: 'access_permit_status',
+    type: 'enum',
+    enum: EstadoPermisoAcceso,
+    default: EstadoPermisoAcceso.NOT_REQUIRED,
+  })
+  accessPermitStatus: EstadoPermisoAcceso;
+
+  @Column({
+    name: 'access_permit_file_url',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  accessPermitFileUrl: string | null;
+
+  @Column({
+    name: 'access_permit_file_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  accessPermitFileName: string | null;
+
+  @Column({
+    name: 'access_permit_mime_type',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
+  accessPermitMimeType: string | null;
+
+  @Column({
+    name: 'access_permit_uploaded_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  accessPermitUploadedAt: Date | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'access_permit_uploaded_by_id' })
+  accessPermitUploadedBy: User | null;
+
+  @Column({
+    name: 'access_permit_uploaded_by_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  accessPermitUploadedById: string | null;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'creado_por_id' })

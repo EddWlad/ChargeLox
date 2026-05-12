@@ -2,6 +2,7 @@ export enum RolUsuario {
   ADMINISTRADOR = 'ADMINISTRADOR',
   SUPERVISOR = 'SUPERVISOR',
   TECNICO = 'TECNICO',
+  GESTOR_DE_VISITAS = 'GESTOR_DE_VISITAS',
   ANALISTA = 'ANALISTA',
 }
 
@@ -57,6 +58,18 @@ export enum EstadoActividadTecnica {
   COMPLETADA = 'COMPLETADA',
   OBSERVADA = 'OBSERVADA',
   CANCELADA = 'CANCELADA',
+}
+
+export enum EstadoPermisoAcceso {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  PENDING = 'PENDING',
+  UPLOADED = 'UPLOADED',
+}
+
+export enum TipoInfraestructuraTecnica {
+  PUNTO_CARGA = 'PUNTO_CARGA',
+  ELECTROLINERA = 'ELECTROLINERA',
+  BARRERA = 'BARRERA',
 }
 
 export enum AccionAuditoria {
@@ -285,6 +298,7 @@ export interface ApiMessage {
 export interface TechnicalActivity {
   id: string;
   tipoActividad: TipoActividadTecnica;
+  infrastructureType: TipoInfraestructuraTecnica;
   titulo: string;
   descripcion: string;
   prioridad: Prioridad;
@@ -315,6 +329,13 @@ export interface TechnicalActivity {
   observacionesIniciales: string | null;
   observacionesEjecucion: string | null;
   observacionesCierre: string | null;
+  requiresAccessPermit: boolean;
+  accessPermitStatus: EstadoPermisoAcceso;
+  accessPermitFileUrl: string | null;
+  accessPermitFileName: string | null;
+  accessPermitMimeType: string | null;
+  accessPermitUploadedAt: string | null;
+  accessPermitUploadedById: string | null;
   createdAt: string;
   updatedAt: string;
   tecnicoAsignado?: Pick<User, 'id' | 'nombres' | 'email' | 'rol'> | null;
@@ -336,6 +357,7 @@ export interface TechnicalActivityQuery {
 
 export interface CreateTechnicalActivityRequest {
   tipoActividad: TipoActividadTecnica;
+  infrastructureType?: TipoInfraestructuraTecnica;
   titulo: string;
   descripcion?: string;
   prioridad: Prioridad;
@@ -363,6 +385,7 @@ export interface CreateTechnicalActivityRequest {
   observacionesIniciales?: string;
   observacionesEjecucion?: string;
   observacionesCierre?: string;
+  requiresAccessPermit?: boolean;
 }
 
 export interface UpdateTechnicalActivityRequest

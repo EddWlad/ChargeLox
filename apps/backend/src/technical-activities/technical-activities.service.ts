@@ -14,7 +14,9 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AccionAuditoria,
   EstadoActividadTecnica,
+  EstadoPermisoAcceso,
   RolUsuario,
+  TipoInfraestructuraTecnica,
 } from '../common/enums';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import {
@@ -60,6 +62,8 @@ export class TechnicalActivitiesService {
     'ubicacion',
     'chargingPointId',
     'observacionesIniciales',
+    'infrastructureType',
+    'requiresAccessPermit',
   ];
 
   constructor(
@@ -97,16 +101,63 @@ export class TechnicalActivitiesService {
     return actor.rol === RolUsuario.ANALISTA;
   }
 
+  private isVisitManager(actor: AuthenticatedUser): boolean {
+    return actor.rol === RolUsuario.GESTOR_DE_VISITAS;
+  }
+
   private canCreateOrAssign(actor: AuthenticatedUser): boolean {
-    return this.isAdmin(actor) || this.isSupervisor(actor);
+    return (
+      this.isAdmin(actor) ||
+      this.isSupervisor(actor) ||
+      this.isAnalyst(actor)
+    );
   }
 
   private canListGlobal(actor: AuthenticatedUser): boolean {
-    return this.isAdmin(actor) || this.isSupervisor(actor) || this.isAnalyst(actor);
+    return (
+      this.isAdmin(actor) ||
+      this.isSupervisor(actor) ||
+      this.isAnalyst(actor) ||
+      this.isVisitManager(actor)
+    );
   }
 
   private canComment(actor: AuthenticatedUser): boolean {
-    return this.isAdmin(actor) || this.isSupervisor(actor) || this.isTechnician(actor);
+    return (
+      this.isAdmin(actor) ||
+      this.isSupervisor(actor) ||
+      this.isTechnician(actor) ||
+      this.isAnalyst(actor) ||
+      this.isVisitManager(actor)
+    );
+  }
+
+  private hasPendingAccessPermit(activity: TechnicalActivity): boolean {
+    return (
+      activity.requiresAccessPermit &&
+      activity.accessPermitStatus === EstadoPermisoAcceso.PENDING
+    );
+  }
+
+  private canManageAccessPermit(actor: AuthenticatedUser): boolean {
+    return this.isAdmin(actor) || this.isVisitManager(actor);
+  }
+
+  private ensureOperationalAccess(
+    activity: TechnicalActivity,
+    actor: AuthenticatedUser,
+  ): void {
+    if (!this.hasPendingAccessPermit(activity)) {
+      return;
+    }
+
+    if (this.canManageAccessPermit(actor)) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'La actividad técnica está pendiente de permiso de acceso. Adjunte el permiso para continuar.',
+    );
   }
 
   private ensureCanView(activity: TechnicalActivity, actor: AuthenticatedUser): void {
@@ -139,13 +190,16 @@ export class TechnicalActivitiesService {
     activity: TechnicalActivity,
     actor: AuthenticatedUser,
   ): void {
-    if (this.isAnalyst(actor)) {
+    if (!this.canComment(actor)) {
       throw new ForbiddenException(
-        'Los analistas no pueden subir evidencias técnicas.',
+        'No tiene permisos para subir evidencias técnicas.',
       );
     }
 
-    this.ensureCanEdit(activity, actor);
+    this.ensureCanView(activity, actor);
+    if (this.isTechnician(actor)) {
+      this.ensureOperationalAccess(activity, actor);
+    }
   }
 
   private ensureCanCommentOnActivity(
@@ -159,6 +213,10 @@ export class TechnicalActivitiesService {
     }
 
     this.ensureCanView(activity, actor);
+
+    if (this.isTechnician(actor)) {
+      this.ensureOperationalAccess(activity, actor);
+    }
   }
 
   private async getActiveTechnician(userId: string): Promise<User> {
@@ -238,6 +296,16 @@ export class TechnicalActivitiesService {
       email: user.email,
       rol: user.rol,
     };
+  }
+
+  private infrastructureLabel(value: TipoInfraestructuraTecnica): string {
+    if (value === TipoInfraestructuraTecnica.ELECTROLINERA) {
+      return 'Electrolinera';
+    }
+    if (value === TipoInfraestructuraTecnica.BARRERA) {
+      return 'Barrera';
+    }
+    return 'Punto de carga';
   }
 
   private toActivityResponse(activity: TechnicalActivity) {
@@ -431,6 +499,47 @@ export class TechnicalActivitiesService {
     });
   }
 
+  private async notifyVisitManagersForPermit(
+    activity: TechnicalActivity,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const managers = await this.usersRepository.find({
+      where: { rol: RolUsuario.GESTOR_DE_VISITAS, activo: true },
+      select: ['id'],
+    });
+
+    const recipients = managers
+      .map((item) => item.id)
+      .filter((userId) => userId !== actor.id);
+
+    await this.notificationsService.createForUsers({
+      userIds: recipients,
+      titulo: 'Permiso de acceso requerido',
+      mensaje: `La actividad "${activity.titulo}" requiere gestión de permiso de acceso.`,
+      tipo: 'TECHNICAL_ACCESS_PERMIT_REQUIRED',
+      referenciaId: activity.id,
+    });
+  }
+
+  private async notifyAccessPermitUploaded(
+    activity: TechnicalActivity,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const recipients = [
+      activity.tecnicoAsignadoId,
+      activity.creadoPorId,
+      activity.supervisorAsignadorId,
+    ].filter((userId) => userId && userId !== actor.id);
+
+    await this.notificationsService.createForUsers({
+      userIds: recipients,
+      titulo: 'Permiso de acceso adjuntado',
+      mensaje: `El permiso de acceso para "${activity.titulo}" fue adjuntado y la actividad puede continuar.`,
+      tipo: 'TECHNICAL_ACCESS_PERMIT_UPLOADED',
+      referenciaId: activity.id,
+    });
+  }
+
   async listAssignableTechnicians(actor: AuthenticatedUser) {
     if (!this.canListGlobal(actor)) {
       throw new ForbiddenException(
@@ -453,7 +562,7 @@ export class TechnicalActivitiesService {
   async create(dto: CreateTechnicalActivityDto, actor: AuthenticatedUser) {
     if (!this.canCreateOrAssign(actor)) {
       throw new ForbiddenException(
-        'Solo administrador o supervisor pueden crear actividades técnicas.',
+        'No tiene permisos para crear actividades técnicas.',
       );
     }
 
@@ -462,6 +571,8 @@ export class TechnicalActivitiesService {
 
     const created = this.technicalActivitiesRepository.create({
       tipoActividad: dto.tipoActividad,
+      infrastructureType:
+        dto.infrastructureType ?? TipoInfraestructuraTecnica.PUNTO_CARGA,
       titulo: dto.titulo,
       descripcion: dto.descripcion?.trim() || '',
       prioridad: dto.prioridad,
@@ -492,6 +603,16 @@ export class TechnicalActivitiesService {
       observacionesIniciales: dto.observacionesIniciales ?? null,
       observacionesEjecucion: dto.observacionesEjecucion ?? null,
       observacionesCierre: dto.observacionesCierre ?? null,
+      requiresAccessPermit: dto.requiresAccessPermit ?? false,
+      accessPermitStatus:
+        dto.requiresAccessPermit === true
+          ? EstadoPermisoAcceso.PENDING
+          : EstadoPermisoAcceso.NOT_REQUIRED,
+      accessPermitFileUrl: null,
+      accessPermitFileName: null,
+      accessPermitMimeType: null,
+      accessPermitUploadedAt: null,
+      accessPermitUploadedById: null,
     });
 
     const saved = await this.technicalActivitiesRepository.save(created);
@@ -510,6 +631,10 @@ export class TechnicalActivitiesService {
       'Nueva actividad técnica asignada',
       `${actor.nombres} te asignó la actividad "${saved.titulo}".`,
     );
+
+    if (saved.requiresAccessPermit) {
+      await this.notifyVisitManagersForPermit(saved, actor);
+    }
 
     await this.auditLogsService.log({
       entidad: 'TechnicalActivity',
@@ -711,7 +836,10 @@ export class TechnicalActivitiesService {
     worksheet.columns = [
       { header: 'titulo', key: 'titulo', width: 40 },
       { header: 'tipoActividad', key: 'tipoActividad', width: 26 },
+      { header: 'infraestructura', key: 'infraestructura', width: 22 },
       { header: 'estado', key: 'estado', width: 18 },
+      { header: 'requierePermiso', key: 'requierePermiso', width: 18 },
+      { header: 'estadoPermiso', key: 'estadoPermiso', width: 18 },
       { header: 'prioridad', key: 'prioridad', width: 16 },
       { header: 'tecnicoAsignado', key: 'tecnicoAsignado', width: 28 },
       { header: 'supervisorAsignador', key: 'supervisorAsignador', width: 28 },
@@ -725,7 +853,10 @@ export class TechnicalActivitiesService {
       worksheet.addRow({
         titulo: item.titulo,
         tipoActividad: item.tipoActividad,
+        infraestructura: this.infrastructureLabel(item.infrastructureType),
         estado: item.estado,
+        requierePermiso: item.requiresAccessPermit ? 'SI' : 'NO',
+        estadoPermiso: item.accessPermitStatus,
         prioridad: item.prioridad,
         tecnicoAsignado: item.tecnicoAsignado?.nombres ?? '-',
         supervisorAsignador: item.supervisorAsignador?.nombres ?? '-',
@@ -805,6 +936,7 @@ export class TechnicalActivitiesService {
     }
 
     const previousTechnicianId = activity.tecnicoAsignadoId;
+    const previousRequiresAccessPermit = activity.requiresAccessPermit;
 
     Object.assign(activity, {
       ...dto,
@@ -813,6 +945,19 @@ export class TechnicalActivitiesService {
       fechaInstalacion: dto.fechaInstalacion ?? activity.fechaInstalacion,
       chargingPointId: dto.chargingPointId ?? activity.chargingPointId,
     });
+
+    if (dto.requiresAccessPermit !== undefined) {
+      if (!dto.requiresAccessPermit) {
+        activity.accessPermitStatus = EstadoPermisoAcceso.NOT_REQUIRED;
+        activity.accessPermitFileUrl = null;
+        activity.accessPermitFileName = null;
+        activity.accessPermitMimeType = null;
+        activity.accessPermitUploadedAt = null;
+        activity.accessPermitUploadedById = null;
+      } else if (activity.accessPermitStatus !== EstadoPermisoAcceso.UPLOADED) {
+        activity.accessPermitStatus = EstadoPermisoAcceso.PENDING;
+      }
+    }
 
     const saved = await this.technicalActivitiesRepository.save(activity);
 
@@ -834,6 +979,13 @@ export class TechnicalActivitiesService {
         'Actividad técnica reasignada',
         `${actor.nombres} te reasignó la actividad "${saved.titulo}".`,
       );
+    }
+
+    if (
+      dto.requiresAccessPermit === true &&
+      previousRequiresAccessPermit === false
+    ) {
+      await this.notifyVisitManagersForPermit(saved, actor);
     }
 
     await this.auditLogsService.log({
@@ -860,6 +1012,9 @@ export class TechnicalActivitiesService {
     }
 
     this.ensureCanEdit(activity, actor);
+    if (this.isTechnician(actor)) {
+      this.ensureOperationalAccess(activity, actor);
+    }
     this.validateStatusTransition(activity.estado, dto.estado, actor);
 
     const previousStatus = activity.estado;
@@ -1100,6 +1255,161 @@ export class TechnicalActivitiesService {
     });
 
     return evidences.map((item) => this.toEvidenceResponse(item));
+  }
+
+  async getAccessPermitMetadata(activityId: string, actor: AuthenticatedUser) {
+    const activity = await this.technicalActivitiesRepository.findOne({
+      where: { id: activityId },
+    });
+    if (!activity) {
+      throw new NotFoundException('Actividad técnica no encontrada.');
+    }
+
+    this.ensureCanView(activity, actor);
+
+    return {
+      requiresAccessPermit: activity.requiresAccessPermit,
+      accessPermitStatus: activity.accessPermitStatus,
+      accessPermitFileUrl: activity.accessPermitFileUrl,
+      accessPermitFileName: activity.accessPermitFileName,
+      accessPermitMimeType: activity.accessPermitMimeType,
+      accessPermitUploadedAt: activity.accessPermitUploadedAt,
+      accessPermitUploadedById: activity.accessPermitUploadedById,
+      downloadUrl: activity.accessPermitFileUrl
+        ? `/technical-activities/${activity.id}/access-permit/file`
+        : null,
+    };
+  }
+
+  async uploadAccessPermit(params: {
+    activityId: string;
+    file: Express.Multer.File;
+    actor: AuthenticatedUser;
+  }) {
+    const activity = await this.technicalActivitiesRepository.findOne({
+      where: { id: params.activityId },
+    });
+    if (!activity) {
+      throw new NotFoundException('Actividad técnica no encontrada.');
+    }
+
+    if (!this.canManageAccessPermit(params.actor)) {
+      throw new ForbiddenException(
+        'No tiene permisos para gestionar permisos de acceso.',
+      );
+    }
+
+    if (!activity.requiresAccessPermit) {
+      throw new BadRequestException(
+        'Esta actividad no requiere permiso de acceso.',
+      );
+    }
+
+    if (!this.allowedMimeTypes.includes(params.file.mimetype)) {
+      throw new BadRequestException('Tipo de archivo no permitido.');
+    }
+
+    const maxSize = Number(process.env.MAX_FILE_SIZE_BYTES ?? 5_000_000);
+    if (params.file.size > maxSize) {
+      throw new BadRequestException('El archivo excede el tamaño permitido.');
+    }
+
+    const storageMode = this.getStorageMode();
+    const uploadDir =
+      process.env.ACCESS_PERMITS_UPLOAD_DIR ?? 'private_uploads/access-permits';
+    const fullPath = join(process.cwd(), uploadDir, params.file.filename);
+
+    let accessPermitFileUrl: string | null = `${uploadDir}/${params.file.filename}`;
+    if (storageMode !== 'local' && this.cloudinaryService.isConfigured()) {
+      try {
+        const uploaded = await this.cloudinaryService.uploadLocalFile(fullPath);
+        accessPermitFileUrl = uploaded.secureUrl;
+        if (existsSync(fullPath)) {
+          await unlink(fullPath);
+        }
+      } catch {
+        if (storageMode === 'cloudinary') {
+          throw new BadRequestException(
+            'No fue posible subir el permiso de acceso a Cloudinary.',
+          );
+        }
+      }
+    } else if (storageMode === 'cloudinary') {
+      throw new BadRequestException(
+        'Cloudinary no está configurado. Complete CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET.',
+      );
+    }
+
+    activity.accessPermitStatus = EstadoPermisoAcceso.UPLOADED;
+    activity.accessPermitFileUrl = accessPermitFileUrl;
+    activity.accessPermitFileName = params.file.originalname;
+    activity.accessPermitMimeType = params.file.mimetype;
+    activity.accessPermitUploadedAt = new Date();
+    activity.accessPermitUploadedById = params.actor.id;
+
+    const saved = await this.technicalActivitiesRepository.save(activity);
+
+    await this.addHistory({
+      activityId: saved.id,
+      actor: params.actor,
+      accion: 'ACCESS_PERMIT_UPLOADED',
+      descripcion: 'Permiso de acceso adjuntado.',
+    });
+
+    await this.notifyAccessPermitUploaded(saved, params.actor);
+
+    await this.auditLogsService.log({
+      entidad: 'TechnicalActivity',
+      entidadId: saved.id,
+      accion: AccionAuditoria.UPDATE,
+      resumenCambio: 'Permiso de acceso adjuntado en actividad técnica.',
+      actor: params.actor,
+    });
+
+    return this.getAccessPermitMetadata(saved.id, params.actor);
+  }
+
+  async getAccessPermitDownloadData(
+    activityId: string,
+    actor: AuthenticatedUser,
+  ): Promise<
+    | { kind: 'cloudinary'; url: string }
+    | { kind: 'local'; fullPath: string; mimeType: string; fileName: string }
+  > {
+    const activity = await this.technicalActivitiesRepository.findOne({
+      where: { id: activityId },
+    });
+    if (!activity) {
+      throw new NotFoundException('Actividad técnica no encontrada.');
+    }
+
+    this.ensureCanView(activity, actor);
+
+    if (!activity.accessPermitFileUrl) {
+      throw new NotFoundException('La actividad no tiene permiso adjunto.');
+    }
+
+    if (
+      activity.accessPermitFileUrl.startsWith('http://') ||
+      activity.accessPermitFileUrl.startsWith('https://')
+    ) {
+      return {
+        kind: 'cloudinary',
+        url: activity.accessPermitFileUrl,
+      };
+    }
+
+    const fullPath = join(process.cwd(), activity.accessPermitFileUrl);
+    if (!existsSync(fullPath)) {
+      throw new NotFoundException('El archivo de permiso no existe.');
+    }
+
+    return {
+      kind: 'local',
+      fullPath,
+      mimeType: activity.accessPermitMimeType ?? 'application/octet-stream',
+      fileName: activity.accessPermitFileName ?? 'permiso-acceso',
+    };
   }
 
   async getEvidenceDownloadData(evidenceId: string, actor: AuthenticatedUser) {

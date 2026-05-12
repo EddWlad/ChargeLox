@@ -4,6 +4,7 @@ import { Component, OnInit, signal, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { User } from '../../core/models/domain.models';
+import { API_BASE_URL } from '../../core/config/api.config';
 import { AuthService } from '../../core/services/auth.service';
 import { UsersApiService } from '../../core/services/users-api.service';
 
@@ -52,7 +53,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         </div>
 
         <div class="avatar-row" *ngIf="profile() as user">
-          <img *ngIf="user.avatarUrl; else noAvatar" [src]="user.avatarUrl" alt="Avatar" class="avatar-preview" />
+          <img
+            *ngIf="displayAvatarUrl(user.avatarUrl) as avatarUrl; else noAvatar"
+            [src]="avatarUrl"
+            (error)="onAvatarError()"
+            alt="Avatar"
+            class="avatar-preview"
+          />
           <ng-template #noAvatar>
             <div class="avatar-empty">{{ user.nombres.slice(0, 1) }}</div>
           </ng-template>
@@ -72,6 +79,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
 export class ProfilePageComponent {
   private readonly fb = inject(FormBuilder);
   readonly profile = signal<User | null>(null);
+  readonly avatarLoadFailed = signal(false);
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -108,6 +116,7 @@ export class ProfilePageComponent {
       .subscribe({
         next: (user) => {
           this.profile.set(user);
+          this.avatarLoadFailed.set(false);
           this.profileForm.patchValue({
             nombres: user.nombres,
             apellidos: user.apellidos ?? '',
@@ -137,6 +146,7 @@ export class ProfilePageComponent {
       .subscribe({
         next: (user) => {
           this.profile.set(user);
+          this.avatarLoadFailed.set(false);
           this.authService.updateCurrentUser(user);
           this.successMessage.set('Perfil actualizado correctamente.');
         },
@@ -188,6 +198,7 @@ export class ProfilePageComponent {
       .subscribe({
         next: (user) => {
           this.profile.set(user);
+          this.avatarLoadFailed.set(false);
           this.authService.updateCurrentUser(user);
           this.successMessage.set('Avatar actualizado correctamente.');
         },
@@ -195,6 +206,24 @@ export class ProfilePageComponent {
           this.errorMessage.set(error.error?.message ?? 'No fue posible subir el avatar.');
         },
       });
+  }
+
+  resolveAssetUrl(path: string | null): string | null {
+    if (!path) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    const apiOrigin = API_BASE_URL.startsWith('http')
+      ? new URL(API_BASE_URL).origin
+      : window.location.origin;
+    return `${apiOrigin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  displayAvatarUrl(path: string | null): string | null {
+    if (this.avatarLoadFailed()) return null;
+    return this.resolveAssetUrl(path);
+  }
+
+  onAvatarError(): void {
+    this.avatarLoadFailed.set(true);
   }
 }
 

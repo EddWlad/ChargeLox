@@ -162,6 +162,14 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
               <option [ngValue]="false">No</option>
             </select>
           </label>
+          <label>
+            Nueva contraseña (opcional)
+            <input type="password" formControlName="nuevaPassword" />
+          </label>
+          <label>
+            Confirmar contraseña (opcional)
+            <input type="password" formControlName="confirmarNuevaPassword" />
+          </label>
 
           <div class="inline-actions">
             <button type="submit" class="btn btn-primary" [disabled]="loading()">Guardar cambios</button>
@@ -207,6 +215,8 @@ export class UsersAdminPageComponent implements OnInit {
     email: ['', [Validators.required, Validators.email]],
     rol: [RolUsuario.ANALISTA, [Validators.required]],
     activo: [true, [Validators.required]],
+    nuevaPassword: [''],
+    confirmarNuevaPassword: [''],
   });
 
   constructor(private readonly usersApi: UsersApiService) {
@@ -285,6 +295,8 @@ export class UsersAdminPageComponent implements OnInit {
       email: user.email,
       rol: user.rol,
       activo: user.activo,
+      nuevaPassword: '',
+      confirmarNuevaPassword: '',
     });
   }
 
@@ -300,12 +312,27 @@ export class UsersAdminPageComponent implements OnInit {
       return;
     }
 
+    const raw = this.editForm.getRawValue();
+    const hasPasswordInput =
+      !!raw.nuevaPassword?.trim() || !!raw.confirmarNuevaPassword?.trim();
+    if (
+      hasPasswordInput &&
+      raw.nuevaPassword.trim() !== raw.confirmarNuevaPassword.trim()
+    ) {
+      this.errorMessage.set('La nueva contraseña y su confirmación no coinciden.');
+      return;
+    }
+
     this.loading.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
 
     this.usersApi
-      .update(id, this.editForm.getRawValue())
+      .update(id, {
+        ...raw,
+        nuevaPassword: raw.nuevaPassword.trim() || undefined,
+        confirmarNuevaPassword: raw.confirmarNuevaPassword.trim() || undefined,
+      })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: () => {

@@ -47,6 +47,13 @@ async function seedUsers() {
       rol: RolUsuario.TECNICO,
       activo: true,
     })),
+    {
+      nombres: 'Gestor',
+      apellidos: 'Visitas',
+      email: 'gestor.visitas@chargelox.com',
+      rol: RolUsuario.GESTOR_DE_VISITAS,
+      activo: true,
+    },
     ...Array.from({ length: 3 }).map((_, index) => ({
       nombres: `Analista${index + 1}`,
       apellidos: 'Monitoreo',
@@ -238,6 +245,9 @@ async function runSeed() {
     );
     console.log(
       'Credencial técnico ejemplo: tecnico1@chargelox.com / Password123*',
+    );
+    console.log(
+      'Credencial gestor de visitas: gestor.visitas@chargelox.com / Password123*',
     );
     console.log(
       'Credencial analista ejemplo: analista1@chargelox.com / Password123*',

@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { RolUsuario } from '../../common/enums';
 
@@ -36,4 +37,24 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Nueva contraseña opcional para restablecimiento administrativo.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(50)
+  nuevaPassword?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Confirmación opcional de la nueva contraseña para restablecimiento administrativo.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(50)
+  confirmarNuevaPassword?: string;
 }

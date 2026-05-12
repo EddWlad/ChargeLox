@@ -6,6 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
   ChargingPoint,
+  EstadoPermisoAcceso,
   EstadoActividadTecnica,
   Prioridad,
   RolUsuario,
@@ -13,6 +14,7 @@ import {
   TechnicalActivityComment,
   TechnicalActivityEvidence,
   TechnicalActivityHistory,
+  TipoInfraestructuraTecnica,
   TipoActividadTecnica,
   User,
 } from '../../core/models/domain.models';
@@ -25,6 +27,22 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
   selector: 'app-technical-activity-detail-page',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, DatePipe],
+  styles: [
+    `
+      .access-permit-actions {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        min-height: 8rem;
+      }
+
+      .file-btn.disabled {
+        pointer-events: none;
+        opacity: 0.6;
+      }
+    `,
+  ],
   template: `
     <section class="section-stack">
       <article class="card" *ngIf="activity() as item">
@@ -40,14 +58,48 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
           <div class="info-block">
             <p><strong>Técnico:</strong> {{ item.tecnicoAsignado?.nombres ?? '-' }}</p>
             <p><strong>Supervisor:</strong> {{ item.supervisorAsignador?.nombres ?? '-' }}</p>
+            <p><strong>Infraestructura:</strong> {{ infrastructureTypeLabel(item.infrastructureType) }}</p>
             <p><strong>Punto:</strong> {{ item.chargingPoint?.nombre ?? 'No asociado' }}</p>
             <p><strong>Programada:</strong> {{ item.fechaProgramada | date: 'mediumDate' }}</p>
             <p><strong>Límite:</strong> {{ item.fechaLimite ? (item.fechaLimite | date: 'mediumDate') : '-' }}</p>
             <p><strong>Descripción:</strong></p>
             <p class="activity-description-text">{{ item.descripcion }}</p>
+            <p><strong>Permiso de acceso:</strong> {{ accessPermitStatusLabel(item.accessPermitStatus) }}</p>
+            <p *ngIf="item.accessPermitFileName"><strong>Archivo permiso:</strong> {{ item.accessPermitFileName }}</p>
           </div>
 
           <div class="info-block form-grid">
+            <div class="access-permit-actions" *ngIf="item.requiresAccessPermit">
+              <label class="btn btn-secondary file-btn" *ngIf="canManageAccessPermit()">
+                Adjuntar permiso
+                <input
+                  type="file"
+                  (change)="uploadAccessPermit($event)"
+                  [disabled]="loading()"
+                />
+              </label>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                *ngIf="item.accessPermitStatus === 'UPLOADED'"
+                (click)="downloadAccessPermit()"
+                [disabled]="loading()"
+              >
+                Descargar permiso
+              </button>
+            </div>
+
+            <p
+              class="status error"
+              *ngIf="
+                item.requiresAccessPermit &&
+                item.accessPermitStatus === 'PENDING' &&
+                !canManageAccessPermit()
+              "
+            >
+              Actividad pendiente de permiso de acceso. Algunas acciones se habilitan cuando el permiso esté adjunto.
+            </p>
+
             <form [formGroup]="statusForm" (ngSubmit)="changeStatus()" class="form-grid" *ngIf="canChangeStatus()">
               <label>
                 Cambiar estado
@@ -63,7 +115,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                 Observaciones cierre (opcional)
                 <input type="text" formControlName="observacionesCierre" />
               </label>
-              <button type="submit" class="btn btn-secondary" [disabled]="loading()">Actualizar estado</button>
+              <button
+                type="submit"
+                class="btn btn-secondary"
+                [disabled]="loading() || isTechnicalWorkLockedByPermit()"
+              >
+                Actualizar estado
+              </button>
             </form>
 
             <button
@@ -89,6 +147,14 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
               Tipo
               <select formControlName="tipoActividad">
                 <option *ngFor="let item of tipoActividadOptions" [value]="item">{{ item }}</option>
+              </select>
+            </label>
+            <label>
+              Infraestructura
+              <select formControlName="infrastructureType">
+                <option *ngFor="let item of infrastructureTypeOptions" [value]="item">
+                  {{ infrastructureTypeLabel(item) }}
+                </option>
               </select>
             </label>
             <label>
@@ -215,7 +281,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             Observaciones cierre
             <textarea rows="2" formControlName="observacionesCierre"></textarea>
           </label>
-          <button type="submit" class="btn btn-primary" [disabled]="loading()">Guardar cambios</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading() || isTechnicalWorkLockedByPermit()"
+          >
+            Guardar cambios
+          </button>
         </form>
       </article>
 
@@ -235,7 +307,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
               <option *ngFor="let item of estadoOptions" [value]="item">{{ item }}</option>
             </select>
           </label>
-          <button type="submit" class="btn btn-primary" [disabled]="loading()">Publicar comentario</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading() || isTechnicalWorkLockedByPermit()"
+          >
+            Publicar comentario
+          </button>
         </form>
       </article>
 
@@ -259,9 +337,17 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
       <article class="card">
         <header class="section-head compact">
           <h3>Evidencias</h3>
-          <label class="btn btn-secondary file-btn" *ngIf="canUploadEvidence()">
+          <label
+            class="btn btn-secondary file-btn"
+            *ngIf="canUploadEvidence()"
+            [class.disabled]="isTechnicalWorkLockedByPermit()"
+          >
             Subir evidencia
-            <input type="file" (change)="uploadEvidence($event)" />
+            <input
+              type="file"
+              (change)="uploadEvidence($event)"
+              [disabled]="loading() || isTechnicalWorkLockedByPermit()"
+            />
           </label>
         </header>
         <ul class="list-clean">
@@ -324,6 +410,7 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   readonly estadoOptions = Object.values(EstadoActividadTecnica);
   readonly prioridadOptions = Object.values(Prioridad);
   readonly tipoActividadOptions = Object.values(TipoActividadTecnica);
+  readonly infrastructureTypeOptions = Object.values(TipoInfraestructuraTecnica);
   readonly estadoFinalOptions = [
     'OPERATIVO - BLOQUEADO',
     'INOPERATIVO',
@@ -344,6 +431,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
 
   readonly updateForm = this.fb.nonNullable.group({
     tipoActividad: [TipoActividadTecnica.INSTALACION, [Validators.required]],
+    infrastructureType: [
+      TipoInfraestructuraTecnica.PUNTO_CARGA,
+      [Validators.required],
+    ],
     titulo: [''],
     descripcion: [''],
     prioridad: [Prioridad.MEDIA, [Validators.required]],
@@ -374,6 +465,7 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
 
   private activityId = '';
   private autoObserveFromNotification = false;
+  private hasAutoObserveAttempted = false;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -402,6 +494,7 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
     return this.authService.hasAnyRole([
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
     ]);
   }
 
@@ -409,6 +502,7 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
     return this.authService.hasAnyRole([
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
       RolUsuario.TECNICO,
     ]);
   }
@@ -418,18 +512,62 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   }
 
   canComment(): boolean {
-    return this.canEditFields();
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
+      RolUsuario.TECNICO,
+      RolUsuario.GESTOR_DE_VISITAS,
+    ]);
   }
 
   canSetOptionalStatus(): boolean {
     return this.authService.hasAnyRole([
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
     ]);
   }
 
   canUploadEvidence(): boolean {
-    return this.canEditFields();
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
+      RolUsuario.TECNICO,
+      RolUsuario.GESTOR_DE_VISITAS,
+    ]);
+  }
+
+  isAssignedTechnician(activity: TechnicalActivity | null = this.activity()): boolean {
+    const currentUserId = this.authService.currentUser()?.id;
+    return (
+      this.authService.hasRole(RolUsuario.TECNICO) &&
+      !!activity &&
+      !!currentUserId &&
+      activity.tecnicoAsignadoId === currentUserId
+    );
+  }
+
+  isAccessPermitPending(activity: TechnicalActivity | null = this.activity()): boolean {
+    return (
+      !!activity &&
+      activity.requiresAccessPermit === true &&
+      activity.accessPermitStatus === EstadoPermisoAcceso.PENDING
+    );
+  }
+
+  isTechnicalWorkLockedByPermit(
+    activity: TechnicalActivity | null = this.activity(),
+  ): boolean {
+    return this.isAssignedTechnician(activity) && this.isAccessPermitPending(activity);
+  }
+
+  canManageAccessPermit(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.GESTOR_DE_VISITAS,
+    ]);
   }
 
   loadLookups(): void {
@@ -468,6 +606,9 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
           });
           this.updateForm.patchValue({
             tipoActividad: activity.tipoActividad,
+            infrastructureType:
+              activity.infrastructureType ??
+              TipoInfraestructuraTecnica.PUNTO_CARGA,
             titulo: activity.titulo,
             descripcion: activity.descripcion,
             prioridad: activity.prioridad,
@@ -496,11 +637,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
             observacionesCierre: activity.observacionesCierre ?? '',
           });
 
-          if (
-            this.autoObserveFromNotification &&
-            this.authService.hasRole(RolUsuario.TECNICO) &&
-            activity.estado === EstadoActividadTecnica.ASIGNADA
-          ) {
+          this.syncFormLockState(activity);
+
+          if (this.shouldAutoMarkAsObserved(activity)) {
+            this.hasAutoObserveAttempted = true;
             this.autoObserveFromNotification = false;
             this.autoMarkAsObserved();
           }
@@ -548,6 +688,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   }
 
   changeStatus(): void {
+    if (this.isTechnicalWorkLockedByPermit()) {
+      return;
+    }
+
     if (this.statusForm.invalid || this.loading()) {
       return;
     }
@@ -580,6 +724,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   }
 
   saveUpdate(): void {
+    if (this.isTechnicalWorkLockedByPermit()) {
+      return;
+    }
+
     if (!this.canEditFields() || this.loading()) {
       return;
     }
@@ -588,6 +736,7 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
     const payload = this.canManageAssignment()
       ? {
           tipoActividad: raw.tipoActividad,
+          infrastructureType: raw.infrastructureType,
           titulo: raw.titulo || undefined,
           descripcion: raw.descripcion || undefined,
           prioridad: raw.prioridad,
@@ -657,6 +806,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   }
 
   addComment(): void {
+    if (this.isTechnicalWorkLockedByPermit()) {
+      return;
+    }
+
     if (this.commentForm.invalid || this.loading()) {
       this.commentForm.markAllAsTouched();
       return;
@@ -692,6 +845,10 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
   }
 
   uploadEvidence(event: Event): void {
+    if (this.isTechnicalWorkLockedByPermit()) {
+      return;
+    }
+
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file || this.loading()) {
@@ -803,9 +960,128 @@ export class TechnicalActivityDetailPageComponent implements OnInit {
       });
   }
 
+  private shouldAutoMarkAsObserved(activity: TechnicalActivity): boolean {
+    if (this.hasAutoObserveAttempted) {
+      return false;
+    }
+
+    if (!this.isAssignedTechnician(activity)) {
+      return false;
+    }
+
+    if (activity.estado !== EstadoActividadTecnica.ASIGNADA) {
+      return false;
+    }
+
+    if (
+      activity.requiresAccessPermit &&
+      activity.accessPermitStatus === EstadoPermisoAcceso.PENDING
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private syncFormLockState(activity: TechnicalActivity): void {
+    const lockedByPermit = this.isTechnicalWorkLockedByPermit(activity);
+
+    if (lockedByPermit) {
+      this.statusForm.disable({ emitEvent: false });
+      this.updateForm.disable({ emitEvent: false });
+      this.commentForm.disable({ emitEvent: false });
+      return;
+    }
+
+    if (this.canChangeStatus()) {
+      this.statusForm.enable({ emitEvent: false });
+    } else {
+      this.statusForm.disable({ emitEvent: false });
+    }
+
+    if (this.canEditFields()) {
+      this.updateForm.enable({ emitEvent: false });
+    } else {
+      this.updateForm.disable({ emitEvent: false });
+    }
+
+    if (this.canComment()) {
+      this.commentForm.enable({ emitEvent: false });
+    } else {
+      this.commentForm.disable({ emitEvent: false });
+    }
+  }
+
+  uploadAccessPermit(event: Event): void {
+    if (!this.canManageAccessPermit() || this.loading()) {
+      return;
+    }
+
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
+
+    this.technicalApi
+      .uploadAccessPermit(this.activityId, file)
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: () => {
+          this.successMessage.set('Permiso de acceso adjuntado correctamente.');
+          this.loadActivity();
+          this.loadHistory();
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(
+            error.error?.message ?? 'No fue posible adjuntar el permiso de acceso.',
+          );
+        },
+      });
+  }
+
+  downloadAccessPermit(): void {
+    this.technicalApi.downloadAccessPermit(this.activityId).subscribe({
+      next: (blob) => {
+        const fileName =
+          this.activity()?.accessPermitFileName ?? 'permiso-acceso-tecnico';
+        this.saveBlobAsFile(blob, fileName);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.errorMessage.set(
+          error.error?.message ?? 'No fue posible descargar el permiso de acceso.',
+        );
+      },
+    });
+  }
+
   formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  accessPermitStatusLabel(value: EstadoPermisoAcceso | string | null | undefined): string {
+    if (value === EstadoPermisoAcceso.PENDING) {
+      return 'Pendiente';
+    }
+    if (value === EstadoPermisoAcceso.UPLOADED) {
+      return 'Adjuntado';
+    }
+    return 'No requiere';
+  }
+
+  infrastructureTypeLabel(value: TipoInfraestructuraTecnica | null | undefined): string {
+    if (value === TipoInfraestructuraTecnica.ELECTROLINERA) {
+      return 'Electrolinera';
+    }
+    if (value === TipoInfraestructuraTecnica.BARRERA) {
+      return 'Barrera';
+    }
+    return 'Punto de carga';
   }
 }

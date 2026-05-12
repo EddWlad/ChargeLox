@@ -6,11 +6,13 @@ import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
   ChargingPoint,
+  EstadoPermisoAcceso,
   EstadoActividadTecnica,
   Prioridad,
   RolUsuario,
   TechnicalActivity,
   TechnicalActivityQuery,
+  TipoInfraestructuraTecnica,
   TipoActividadTecnica,
   User,
 } from '../../core/models/domain.models';
@@ -23,6 +25,36 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
   selector: 'app-technical-activities-page',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, DatePipe],
+  styles: [
+    `
+      .technical-type-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+
+      .technical-type-main {
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.25;
+        word-break: break-word;
+      }
+
+      .technical-type-target {
+        width: fit-content;
+        max-width: 100%;
+        padding: 0.2rem 0.8rem;
+        border-radius: 999px;
+        border: 0.1rem solid #bfdbfe;
+        background: #eff6ff;
+        color: #2563eb;
+        font-size: 1.1rem;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+    `,
+  ],
   template: `
     <section class="section-stack">
       <article class="card" *ngIf="canCreate()">
@@ -36,6 +68,14 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             Tipo de actividad
             <select formControlName="tipoActividad">
               <option *ngFor="let item of tipoActividadOptions" [value]="item">{{ item }}</option>
+            </select>
+          </label>
+          <label>
+            Infraestructura
+            <select formControlName="infrastructureType">
+              <option *ngFor="let item of infrastructureTypeOptions" [value]="item">
+                {{ infrastructureTypeLabel(item) }}
+              </option>
             </select>
           </label>
           <label>
@@ -81,6 +121,13 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
           <label>
             Observaciones iniciales (opcional)
             <input type="text" formControlName="observacionesIniciales" />
+          </label>
+          <label>
+            Requiere permiso de acceso
+            <select formControlName="requiresAccessPermit">
+              <option [ngValue]="false">No</option>
+              <option [ngValue]="true">Sí</option>
+            </select>
           </label>
           <label class="full-row">
             Descripción
@@ -157,6 +204,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                 <th>Título</th>
                 <th>Tipo</th>
                 <th>Estado</th>
+                <th>Permiso</th>
                 <th>Prioridad</th>
                 <th>Técnico</th>
                 <th>Programada</th>
@@ -166,9 +214,28 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
             <tbody>
               <tr *ngFor="let item of items()">
                 <td data-label="Título">{{ item.titulo }}</td>
-                <td data-label="Tipo">{{ item.tipoActividad }}</td>
+                <td data-label="Tipo">
+                  <div class="technical-type-cell">
+                    <span class="technical-type-main">{{ technicalTypeLabel(item.tipoActividad) }}</span>
+                    <span class="technical-type-target">{{ infrastructureTypeLabel(item.infrastructureType) }}</span>
+                  </div>
+                </td>
                 <td data-label="Estado">
                   <span class="pill" [attr.data-tech-state]="item.estado">{{ item.estado }}</span>
+                </td>
+                <td data-label="Permiso">
+                  <span
+                    class="pill"
+                    [attr.data-tech-state]="
+                      item.accessPermitStatus === 'UPLOADED'
+                        ? 'COMPLETADA'
+                        : item.accessPermitStatus === 'PENDING'
+                          ? 'EN_PROCESO'
+                          : 'OBSERVADA'
+                    "
+                  >
+                    {{ accessPermitStatusLabel(item.accessPermitStatus) }}
+                  </span>
                 </td>
                 <td data-label="Prioridad">
                   <span class="pill" [attr.data-priority]="item.prioridad">{{ item.prioridad }}</span>
@@ -182,7 +249,7 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                 </td>
               </tr>
               <tr *ngIf="items().length === 0">
-                <td colspan="7" class="muted">No hay actividades técnicas para los filtros actuales.</td>
+                <td colspan="8" class="muted">No hay actividades técnicas para los filtros actuales.</td>
               </tr>
             </tbody>
           </table>
@@ -214,6 +281,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
   readonly chargingPoints = signal<ChargingPoint[]>([]);
 
   readonly tipoActividadOptions = Object.values(TipoActividadTecnica);
+  readonly infrastructureTypeOptions = Object.values(TipoInfraestructuraTecnica);
   readonly estadoOptions = Object.values(EstadoActividadTecnica);
   readonly prioridadOptions = Object.values(Prioridad);
 
@@ -228,6 +296,10 @@ export class TechnicalActivitiesPageComponent implements OnInit {
 
   readonly createForm = this.fb.nonNullable.group({
     tipoActividad: [TipoActividadTecnica.INSTALACION, [Validators.required]],
+    infrastructureType: [
+      TipoInfraestructuraTecnica.PUNTO_CARGA,
+      [Validators.required],
+    ],
     titulo: ['', [Validators.required]],
     descripcion: [''],
     prioridad: [Prioridad.MEDIA, [Validators.required]],
@@ -237,6 +309,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     chargingPointId: [''],
     ubicacion: [''],
     observacionesIniciales: [''],
+    requiresAccessPermit: [false],
   });
 
   query: TechnicalActivityQuery = {
@@ -261,6 +334,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     return this.authService.hasAnyRole([
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
+      RolUsuario.ANALISTA,
     ]);
   }
 
@@ -272,6 +346,8 @@ export class TechnicalActivitiesPageComponent implements OnInit {
     return this.authService.hasAnyRole([
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
+      RolUsuario.GESTOR_DE_VISITAS,
+      RolUsuario.ANALISTA,
     ]);
   }
 
@@ -280,7 +356,13 @@ export class TechnicalActivitiesPageComponent implements OnInit {
   }
 
   loadLookups(): void {
-    if (this.canCreate() || this.canFilterByTechnician()) {
+    if (
+      this.authService.hasAnyRole([
+        RolUsuario.ADMINISTRADOR,
+        RolUsuario.SUPERVISOR,
+        RolUsuario.ANALISTA,
+      ])
+    ) {
       this.technicalApi.listAssignableTechnicians().subscribe({
         next: (users) => this.technicians.set(users),
       });
@@ -349,6 +431,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
       chargingPointId: raw.chargingPointId || undefined,
       ubicacion: raw.ubicacion || undefined,
       observacionesIniciales: raw.observacionesIniciales || undefined,
+      requiresAccessPermit: !!raw.requiresAccessPermit,
     };
 
     this.loading.set(true);
@@ -362,6 +445,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
         next: () => {
           this.successMessage.set('Actividad técnica creada correctamente.');
           this.createForm.patchValue({
+            infrastructureType: TipoInfraestructuraTecnica.PUNTO_CARGA,
             titulo: '',
             descripcion: '',
             tecnicoAsignadoId: '',
@@ -370,6 +454,7 @@ export class TechnicalActivitiesPageComponent implements OnInit {
             chargingPointId: '',
             ubicacion: '',
             observacionesIniciales: '',
+            requiresAccessPermit: false,
           });
           this.load(true);
         },
@@ -380,6 +465,48 @@ export class TechnicalActivitiesPageComponent implements OnInit {
           );
         },
       });
+  }
+
+  infrastructureTypeLabel(value: TipoInfraestructuraTecnica | null | undefined): string {
+    if (!value) {
+      return 'No definido';
+    }
+
+    if (value === TipoInfraestructuraTecnica.ELECTROLINERA) {
+      return 'Electrolinera';
+    }
+    if (value === TipoInfraestructuraTecnica.BARRERA) {
+      return 'Barrera';
+    }
+    return 'Punto de carga';
+  }
+
+  technicalTypeLabel(value: TipoActividadTecnica | null | undefined): string {
+    if (!value) {
+      return 'No definido';
+    }
+
+    const labels: Record<TipoActividadTecnica, string> = {
+      [TipoActividadTecnica.INSTALACION]: 'Instalación',
+      [TipoActividadTecnica.MANTENIMIENTO_PREVENTIVO]:
+        'Mantenimiento preventivo',
+      [TipoActividadTecnica.MANTENIMIENTO_CORRECTIVO]:
+        'Mantenimiento correctivo',
+      [TipoActividadTecnica.VISITA_TECNICA]: 'Visita técnica',
+      [TipoActividadTecnica.REVISION_TECNICA]: 'Revisión técnica',
+    };
+
+    return labels[value] ?? value;
+  }
+
+  accessPermitStatusLabel(value: EstadoPermisoAcceso | string | null | undefined): string {
+    if (value === EstadoPermisoAcceso.PENDING) {
+      return 'Pendiente';
+    }
+    if (value === EstadoPermisoAcceso.UPLOADED) {
+      return 'Adjuntado';
+    }
+    return 'No requiere';
   }
 
   downloadExcel(): void {

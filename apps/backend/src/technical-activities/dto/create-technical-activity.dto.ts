@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsOptional,
@@ -10,6 +11,7 @@ import {
 import {
   EstadoActividadTecnica,
   Prioridad,
+  TipoInfraestructuraTecnica,
   TipoActividadTecnica,
 } from '../../common/enums';
 
@@ -17,6 +19,11 @@ export class CreateTechnicalActivityDto {
   @ApiProperty({ enum: TipoActividadTecnica })
   @IsEnum(TipoActividadTecnica)
   tipoActividad: TipoActividadTecnica;
+
+  @ApiPropertyOptional({ enum: TipoInfraestructuraTecnica })
+  @IsOptional()
+  @IsEnum(TipoInfraestructuraTecnica)
+  infrastructureType?: TipoInfraestructuraTecnica;
 
   @ApiProperty()
   @IsString()
@@ -157,4 +164,13 @@ export class CreateTechnicalActivityDto {
   @IsOptional()
   @IsString()
   observacionesCierre?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Indica si la actividad requiere un permiso de acceso previo para poder ejecutarse.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requiresAccessPermit?: boolean;
 }

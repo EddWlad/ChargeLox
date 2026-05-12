@@ -193,6 +193,8 @@ export class NotificationsPageComponent implements OnInit {
       'TECHNICAL_ACTIVITY_STATUS_CHANGED',
       'TECHNICAL_ACTIVITY_COMMENT_CREATED',
       'TECHNICAL_ACTIVITY_EVIDENCE_CREATED',
+      'TECHNICAL_ACCESS_PERMIT_REQUIRED',
+      'TECHNICAL_ACCESS_PERMIT_UPLOADED',
     ]);
 
     if (technicalTypes.has(notification.tipo)) {

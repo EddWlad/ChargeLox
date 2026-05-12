@@ -151,6 +151,22 @@ export class UsersService {
       }
     }
 
+    if (dto.nuevaPassword || dto.confirmarNuevaPassword) {
+      if (!dto.nuevaPassword || !dto.confirmarNuevaPassword) {
+        throw new BadRequestException(
+          'Debe enviar nueva contraseña y su confirmación.',
+        );
+      }
+
+      if (dto.nuevaPassword !== dto.confirmarNuevaPassword) {
+        throw new BadRequestException(
+          'La nueva contraseña y su confirmación no coinciden.',
+        );
+      }
+
+      user.passwordHash = await bcrypt.hash(dto.nuevaPassword, 10);
+    }
+
     Object.assign(user, {
       nombres: dto.nombres ?? user.nombres,
       apellidos: dto.apellidos ?? user.apellidos,

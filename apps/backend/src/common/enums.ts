@@ -2,6 +2,7 @@ export enum RolUsuario {
   ADMINISTRADOR = 'ADMINISTRADOR',
   SUPERVISOR = 'SUPERVISOR',
   TECNICO = 'TECNICO',
+  GESTOR_DE_VISITAS = 'GESTOR_DE_VISITAS',
   ANALISTA = 'ANALISTA',
 }
 
@@ -57,6 +58,18 @@ export enum EstadoActividadTecnica {
   COMPLETADA = 'COMPLETADA',
   OBSERVADA = 'OBSERVADA',
   CANCELADA = 'CANCELADA',
+}
+
+export enum EstadoPermisoAcceso {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  PENDING = 'PENDING',
+  UPLOADED = 'UPLOADED',
+}
+
+export enum TipoInfraestructuraTecnica {
+  PUNTO_CARGA = 'PUNTO_CARGA',
+  ELECTROLINERA = 'ELECTROLINERA',
+  BARRERA = 'BARRERA',
 }
 
 export enum AccionAuditoria {

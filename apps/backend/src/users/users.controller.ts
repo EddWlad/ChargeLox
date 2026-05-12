@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -19,7 +20,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
+import { existsSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { extname } from 'path';
+import { join } from 'path';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -32,12 +36,16 @@ import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { CloudinaryService } from '../technical-activities/cloudinary.service';
 
 @ApiTags('Usuarios')
 @ApiBearerAuth('access-token')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Obtiene el perfil del usuario autenticado.' })
@@ -96,7 +104,37 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    if (!file) {
+      throw new BadRequestException('Debe adjuntar un archivo de avatar.');
+    }
+
+    if (!file.mimetype?.startsWith('image/')) {
+      throw new BadRequestException('El avatar debe ser una imagen válida.');
+    }
+
+    const uploadDir = process.env.AVATARS_UPLOAD_DIR ?? 'uploads/avatars';
+    const fullPath = join(process.cwd(), uploadDir, file.filename);
+
+    let avatarUrl = `/uploads/avatars/${file.filename}`;
+
+    if (this.cloudinaryService.isConfigured()) {
+      try {
+        const uploaded = await this.cloudinaryService.uploadLocalFile(
+          fullPath,
+          process.env.CLOUDINARY_AVATARS_FOLDER?.trim() || 'chargelox/avatars',
+        );
+        avatarUrl = uploaded.secureUrl;
+
+        if (existsSync(fullPath)) {
+          await unlink(fullPath);
+        }
+      } catch {
+        throw new BadRequestException(
+          'No fue posible subir el avatar a Cloudinary.',
+        );
+      }
+    }
+
     return this.usersService.updateAvatar(user.id, avatarUrl);
   }
 

@@ -179,6 +179,17 @@ export class ReportsService {
     return raw.replaceAll('_', ' ').trim();
   }
 
+  private formatInfrastructureType(value: unknown): string {
+    const raw = this.stringify(value);
+    if (raw === 'ELECTROLINERA') {
+      return 'Electrolinera';
+    }
+    if (raw === 'BARRERA') {
+      return 'Barrera';
+    }
+    return 'Punto de carga';
+  }
+
   private isImageMimeType(value: unknown): boolean {
     const mimeType = this.stringify(value).toLowerCase();
     return mimeType.startsWith('image/');
@@ -1387,6 +1398,14 @@ export class ReportsService {
     );
     y += 48;
 
+    drawMetric(
+      'INFRAESTRUCTURA',
+      this.formatInfrastructureType(activity.infrastructureType),
+      left,
+    );
+    drawMetric('TIPO', this.formatEnum(activity.tipoActividad), left + columnWidth + 20);
+    y += 48;
+
     const tecnico = (activity.tecnicoAsignado as PrintableRecord | undefined) ?? {};
     const supervisor =
       (activity.supervisorAsignador as PrintableRecord | undefined) ?? {};
@@ -1445,6 +1464,18 @@ export class ReportsService {
       ['Marca / Modelo', `${this.stringify(activity.marca) || '-'} / ${this.stringify(activity.modelo) || '-'}`],
       ['Estado inicial', this.stringify(activity.estadoInicial) || '-'],
       ['Estado final', this.stringify(activity.estadoFinal) || '-'],
+      [
+        'Requiere permiso acceso',
+        Boolean(activity.requiresAccessPermit) ? 'SI' : 'NO',
+      ],
+      [
+        'Estado permiso acceso',
+        this.stringify(activity.accessPermitStatus) || '-',
+      ],
+      [
+        'Archivo permiso',
+        this.stringify(activity.accessPermitFileName) || '-',
+      ],
       ['Diagnóstico', this.stringify(activity.diagnostico) || '-'],
       ['Hallazgos', this.stringify(activity.hallazgos) || '-'],
       ['Acciones realizadas', this.stringify(activity.accionesRealizadas) || '-'],

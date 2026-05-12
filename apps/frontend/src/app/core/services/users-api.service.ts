@@ -24,6 +24,8 @@ export interface UpdateUserRequest {
   email?: string;
   rol?: RolUsuario;
   activo?: boolean;
+  nuevaPassword?: string;
+  confirmarNuevaPassword?: string;
 }
 
 export interface UpdateProfileRequest {

@@ -8,6 +8,7 @@ import {
   RouterOutlet,
 } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { API_BASE_URL } from '../core/config/api.config';
 import { RolUsuario } from '../core/models/domain.models';
 import { AuthService } from '../core/services/auth.service';
 import { NotificationsStateService } from '../core/services/notifications-state.service';
@@ -93,9 +94,10 @@ interface NavItem {
           <div class="topbar-user" *ngIf="authService.currentUser() as user">
             <div class="topbar-user-avatar">
               <img
-                *ngIf="resolveAssetUrl(user.avatarUrl) as avatarUrl; else initialsFallback"
+                *ngIf="displayAvatarUrl(user.avatarUrl) as avatarUrl; else initialsFallback"
                 [src]="avatarUrl"
                 [alt]="'Avatar de ' + user.nombres"
+                (error)="onAvatarError()"
               />
               <ng-template #initialsFallback>
                 <span>{{ initials(user.nombres, user.apellidos) }}</span>
@@ -119,6 +121,7 @@ interface NavItem {
 export class PrivateShellComponent implements OnInit, OnDestroy {
   readonly menuOpen = signal(false);
   readonly currentTime = signal(this.buildTimeLabel());
+  readonly avatarLoadFailed = signal(false);
 
   private readonly clockInterval = setInterval(() => {
     this.currentTime.set(this.buildTimeLabel());
@@ -146,6 +149,13 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
       label: 'Operación técnica',
       path: '/app/technical-activities',
       icon: 'engineering',
+      roles: [
+        RolUsuario.ADMINISTRADOR,
+        RolUsuario.SUPERVISOR,
+        RolUsuario.TECNICO,
+        RolUsuario.GESTOR_DE_VISITAS,
+        RolUsuario.ANALISTA,
+      ],
     },
     { label: 'Notificaciones', path: '/app/notifications', icon: 'notifications' },
     { label: 'Mi Perfil', path: '/app/profile', icon: 'person' },
@@ -185,6 +195,7 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
 
     this.routerEventsSub = this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
+        this.avatarLoadFailed.set(false);
         this.notificationsState.refreshUnreadCount();
       }
     });
@@ -219,6 +230,7 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
     if (role === RolUsuario.ADMINISTRADOR) return 'Panel Administrador';
     if (role === RolUsuario.SUPERVISOR) return 'Panel Supervisor';
     if (role === RolUsuario.TECNICO) return 'Panel Técnico';
+    if (role === RolUsuario.GESTOR_DE_VISITAS) return 'Panel Gestor de visitas';
     return 'Panel Analista';
   }
 
@@ -250,7 +262,19 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
   resolveAssetUrl(path: string | null): string | null {
     if (!path) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return path;
+    const apiOrigin = API_BASE_URL.startsWith('http')
+      ? new URL(API_BASE_URL).origin
+      : window.location.origin;
+    return `${apiOrigin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  displayAvatarUrl(path: string | null): string | null {
+    if (this.avatarLoadFailed()) return null;
+    return this.resolveAssetUrl(path);
+  }
+
+  onAvatarError(): void {
+    this.avatarLoadFailed.set(true);
   }
 
   private buildTimeLabel(): string {

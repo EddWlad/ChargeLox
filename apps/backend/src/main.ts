@@ -13,6 +13,7 @@ function ensureUploadsDirectories(): void {
     process.env.CHARGING_POINTS_UPLOAD_DIR ?? 'uploads/charging-points',
     process.env.TECHNICAL_EVIDENCE_UPLOAD_DIR ??
       'private_uploads/technical-evidences',
+    process.env.ACCESS_PERMITS_UPLOAD_DIR ?? 'private_uploads/access-permits',
   ];
 
   dirs.forEach((dir) => {

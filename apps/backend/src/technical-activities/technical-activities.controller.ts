@@ -43,7 +43,11 @@ export class TechnicalActivitiesController {
   ) {}
 
   @Post()
-  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.SUPERVISOR, RolUsuario.ANALISTA)
+  @Roles(
+    RolUsuario.ADMINISTRADOR,
+    RolUsuario.SUPERVISOR,
+    RolUsuario.ANALISTA,
+  )
   @ApiOperation({ summary: 'Crea y asigna una actividad técnica.' })
   create(
     @Body() dto: CreateTechnicalActivityDto,
@@ -53,7 +57,12 @@ export class TechnicalActivitiesController {
   }
 
   @Get('lookups/technicians')
-  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.SUPERVISOR)
+  @Roles(
+    RolUsuario.ADMINISTRADOR,
+    RolUsuario.SUPERVISOR,
+    RolUsuario.GESTOR_DE_VISITAS,
+    RolUsuario.ANALISTA,
+  )
   @ApiOperation({
     summary:
       'Lista usuarios activos con rol TECNICO para asignación de actividades.',
@@ -63,7 +72,12 @@ export class TechnicalActivitiesController {
   }
 
   @Get()
-  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.SUPERVISOR, RolUsuario.ANALISTA)
+  @Roles(
+    RolUsuario.ADMINISTRADOR,
+    RolUsuario.SUPERVISOR,
+    RolUsuario.GESTOR_DE_VISITAS,
+    RolUsuario.ANALISTA,
+  )
   @ApiOperation({
     summary:
       'Lista global de actividades técnicas (admin/supervisor/analista lectura).',
@@ -86,7 +100,12 @@ export class TechnicalActivitiesController {
   }
 
   @Get('export/excel')
-  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.SUPERVISOR)
+  @Roles(
+    RolUsuario.ADMINISTRADOR,
+    RolUsuario.SUPERVISOR,
+    RolUsuario.GESTOR_DE_VISITAS,
+    RolUsuario.ANALISTA,
+  )
   @ApiOperation({
     summary:
       'Exporta Excel de actividades técnicas (supervisor/admin) con filtro opcional por fecha programada.',
@@ -222,6 +241,86 @@ export class TechnicalActivitiesController {
       file,
       actor,
     });
+  }
+
+  @Post(':id/access-permit/upload')
+  @Roles(RolUsuario.ADMINISTRADOR, RolUsuario.GESTOR_DE_VISITAS)
+  @ApiOperation({
+    summary:
+      'Adjunta documento de permiso de acceso para habilitar actividad técnica.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination:
+          process.env.ACCESS_PERMITS_UPLOAD_DIR ??
+          'private_uploads/access-permits',
+        filename: (_req, file, cb) => {
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          cb(null, `access-permit-${unique}${extname(file.originalname)}`);
+        },
+      }),
+      limits: {
+        fileSize: Number(process.env.MAX_FILE_SIZE_BYTES ?? 5_000_000),
+      },
+    }),
+  )
+  uploadAccessPermit(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.technicalActivitiesService.uploadAccessPermit({
+      activityId: id,
+      file,
+      actor,
+    });
+  }
+
+  @Get(':id/access-permit')
+  @ApiOperation({
+    summary: 'Obtiene metadata del permiso de acceso de una actividad técnica.',
+  })
+  getAccessPermitMetadata(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.technicalActivitiesService.getAccessPermitMetadata(id, actor);
+  }
+
+  @Get(':id/access-permit/file')
+  @ApiOperation({ summary: 'Descarga/visualiza archivo de permiso de acceso.' })
+  async downloadAccessPermit(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const data = await this.technicalActivitiesService.getAccessPermitDownloadData(
+      id,
+      actor,
+    );
+
+    if (data.kind === 'cloudinary') {
+      return res.redirect(data.url);
+    }
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${data.fileName}"`,
+    );
+    res.setHeader('Content-Type', data.mimeType);
+    createReadStream(data.fullPath).pipe(res);
+    return;
   }
 
   @Get(':id/evidences')

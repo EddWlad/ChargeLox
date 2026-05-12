@@ -1103,6 +1103,11 @@ table td {
   background: rgba(229, 172, 64, 0.2);
 }
 
+.pill[data-role='GESTOR_DE_VISITAS'] {
+  color: #0f8c68;
+  background: rgba(15, 140, 104, 0.16);
+}
+
 .pill[data-user-state='ACTIVO'],
 .pill[data-shift='ABIERTO'] {
   color: #0f7858;

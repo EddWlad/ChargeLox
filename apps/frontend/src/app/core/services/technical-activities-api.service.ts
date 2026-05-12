@@ -131,6 +131,62 @@ export class TechnicalActivitiesApiService {
     );
   }
 
+  getAccessPermit(activityId: string): Observable<{
+    requiresAccessPermit: boolean;
+    accessPermitStatus: string;
+    accessPermitFileUrl: string | null;
+    accessPermitFileName: string | null;
+    accessPermitMimeType: string | null;
+    accessPermitUploadedAt: string | null;
+    accessPermitUploadedById: string | null;
+    downloadUrl: string | null;
+  }> {
+    return this.http.get<{
+      requiresAccessPermit: boolean;
+      accessPermitStatus: string;
+      accessPermitFileUrl: string | null;
+      accessPermitFileName: string | null;
+      accessPermitMimeType: string | null;
+      accessPermitUploadedAt: string | null;
+      accessPermitUploadedById: string | null;
+      downloadUrl: string | null;
+    }>(`${API_BASE_URL}/technical-activities/${activityId}/access-permit`);
+  }
+
+  uploadAccessPermit(
+    activityId: string,
+    file: File,
+  ): Observable<{
+    requiresAccessPermit: boolean;
+    accessPermitStatus: string;
+    accessPermitFileUrl: string | null;
+    accessPermitFileName: string | null;
+    accessPermitMimeType: string | null;
+    accessPermitUploadedAt: string | null;
+    accessPermitUploadedById: string | null;
+    downloadUrl: string | null;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{
+      requiresAccessPermit: boolean;
+      accessPermitStatus: string;
+      accessPermitFileUrl: string | null;
+      accessPermitFileName: string | null;
+      accessPermitMimeType: string | null;
+      accessPermitUploadedAt: string | null;
+      accessPermitUploadedById: string | null;
+      downloadUrl: string | null;
+    }>(`${API_BASE_URL}/technical-activities/${activityId}/access-permit/upload`, formData);
+  }
+
+  downloadAccessPermit(activityId: string): Observable<Blob> {
+    return this.http.get(
+      `${API_BASE_URL}/technical-activities/${activityId}/access-permit/file`,
+      { responseType: 'blob' },
+    );
+  }
+
   listHistory(activityId: string): Observable<TechnicalActivityHistory[]> {
     return this.http.get<TechnicalActivityHistory[]>(
       `${API_BASE_URL}/technical-activities/${activityId}/history`,

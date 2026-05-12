@@ -29,13 +29,17 @@ export class CloudinaryService {
     return this.configured;
   }
 
-  async uploadLocalFile(path: string): Promise<{
+  async uploadLocalFile(
+    path: string,
+    folderOverride?: string,
+  ): Promise<{
     publicId: string;
     secureUrl: string;
   }> {
+    const folder = folderOverride?.trim() || this.folder;
     const response = await cloudinary.uploader.upload(path, {
       resource_type: 'image',
-      folder: this.folder,
+      folder,
     });
 
     return {
