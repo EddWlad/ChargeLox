@@ -74,6 +74,12 @@ export class TechnicalActivitiesApiService {
     );
   }
 
+  remove(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(
+      `${API_BASE_URL}/technical-activities/${id}`,
+    );
+  }
+
   changeStatus(
     id: string,
     payload: {

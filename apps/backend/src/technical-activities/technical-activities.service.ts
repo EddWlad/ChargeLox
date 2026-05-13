@@ -9,7 +9,7 @@ import ExcelJS from 'exceljs';
 import { existsSync } from 'fs';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { QueryFailedError, Repository, SelectQueryBuilder } from 'typeorm';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AccionAuditoria,
@@ -183,6 +183,53 @@ export class TechnicalActivitiesService {
 
     throw new ForbiddenException(
       'No tiene permisos para modificar esta actividad técnica.',
+    );
+  }
+
+  private ensureCanDelete(actor: AuthenticatedUser): void {
+    if (this.canCreateOrAssign(actor)) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'No tiene permisos para eliminar esta actividad técnica.',
+    );
+  }
+
+  private isLocalStoredPath(path: string | null | undefined): path is string {
+    if (!path) {
+      return false;
+    }
+
+    return !path.startsWith('http://') && !path.startsWith('https://');
+  }
+
+  private async cleanupLocalTechnicalFiles(params: {
+    accessPermitFileUrl?: string | null;
+    evidencePaths: Array<string | null>;
+  }): Promise<void> {
+    const filePaths = [
+      ...(this.isLocalStoredPath(params.accessPermitFileUrl)
+        ? [params.accessPermitFileUrl]
+        : []),
+      ...params.evidencePaths.filter((item): item is string =>
+        this.isLocalStoredPath(item),
+      ),
+    ];
+
+    await Promise.all(
+      filePaths.map(async (relativePath) => {
+        const fullPath = join(process.cwd(), relativePath);
+        if (!existsSync(fullPath)) {
+          return;
+        }
+
+        try {
+          await unlink(fullPath);
+        } catch {
+          // Evita bloquear eliminación por errores de cleanup de archivos locales.
+        }
+      }),
     );
   }
 
@@ -997,6 +1044,56 @@ export class TechnicalActivitiesService {
     });
 
     return this.findOne(saved.id, actor);
+  }
+
+  async remove(id: string, actor: AuthenticatedUser) {
+    const activity = await this.technicalActivitiesRepository.findOne({
+      where: { id },
+      select: ['id', 'titulo', 'accessPermitFileUrl', 'tecnicoAsignadoId'],
+    });
+
+    if (!activity) {
+      throw new NotFoundException('Actividad técnica no encontrada.');
+    }
+
+    this.ensureCanDelete(actor);
+
+    const evidences = await this.technicalEvidencesRepository.find({
+      where: { actividadTecnicaId: id },
+      select: ['id', 'rutaArchivo'],
+    });
+
+    await this.cleanupLocalTechnicalFiles({
+      accessPermitFileUrl: activity.accessPermitFileUrl,
+      evidencePaths: evidences.map((item) => item.rutaArchivo),
+    });
+
+    try {
+      await this.technicalActivitiesRepository.delete({ id });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error as QueryFailedError & { driverError?: { code?: string } })
+          .driverError?.code === '23503'
+      ) {
+        throw new BadRequestException(
+          'No fue posible eliminar la actividad técnica por referencias relacionadas.',
+        );
+      }
+      throw error;
+    }
+
+    await this.auditLogsService.log({
+      entidad: 'TechnicalActivity',
+      entidadId: id,
+      accion: AccionAuditoria.DELETE,
+      resumenCambio: `Actividad técnica eliminada: ${activity.titulo}.`,
+      actor,
+    });
+
+    return {
+      message: 'Actividad técnica eliminada correctamente.',
+    };
   }
 
   async changeStatus(

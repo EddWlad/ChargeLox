@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -182,6 +183,20 @@ export class TechnicalActivitiesController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.technicalActivitiesService.changeStatus(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @Roles(
+    RolUsuario.ADMINISTRADOR,
+    RolUsuario.SUPERVISOR,
+    RolUsuario.ANALISTA,
+  )
+  @ApiOperation({ summary: 'Elimina una actividad técnica.' })
+  remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.technicalActivitiesService.remove(id, actor);
   }
 
   @Post(':id/comments')

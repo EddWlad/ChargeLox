@@ -78,6 +78,43 @@ export enum AccionAuditoria {
   DELETE = 'DELETE',
 }
 
+export enum ExtraActivityType {
+  QA_FUNCTIONAL = 'QA_FUNCTIONAL',
+  QA_UI = 'QA_UI',
+  BUG_REPORT = 'BUG_REPORT',
+  BUG_FIX = 'BUG_FIX',
+  BUG_VALIDATION = 'BUG_VALIDATION',
+  PRODUCTION_REVIEW = 'PRODUCTION_REVIEW',
+  OPERATIONAL_SUPPORT = 'OPERATIONAL_SUPPORT',
+  DOCUMENTATION = 'DOCUMENTATION',
+  MEETING = 'MEETING',
+  TRAINING = 'TRAINING',
+  TECHNICAL_ANALYSIS = 'TECHNICAL_ANALYSIS',
+  EXTRA_MONITORING = 'EXTRA_MONITORING',
+  OTHER = 'OTHER',
+}
+
+export enum WorkTimeCategory {
+  DURING_SHIFT = 'DURING_SHIFT',
+  OUTSIDE_SHIFT = 'OUTSIDE_SHIFT',
+  WEEKEND_OR_HOLIDAY = 'WEEKEND_OR_HOLIDAY',
+  EMERGENCY = 'EMERGENCY',
+  MIXED = 'MIXED',
+}
+
+export enum ExtraActivityStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  FINISHED = 'FINISHED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum ExtraActivityPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
 export interface PaginationResponse<T> {
   items: T[];
   page: number;
@@ -429,4 +466,95 @@ export interface TechnicalActivityHistory {
   estadoAnterior: EstadoActividadTecnica | null;
   estadoNuevo: EstadoActividadTecnica | null;
   createdAt: string;
+}
+
+export interface ExtraActivity {
+  id: string;
+  userId: string;
+  type: ExtraActivityType;
+  title: string;
+  description: string | null;
+  moduleName: string | null;
+  priority: ExtraActivityPriority;
+  workTimeCategory: WorkTimeCategory;
+  externalReference: string | null;
+  status: ExtraActivityStatus;
+  startedAt: string;
+  endedAt: string | null;
+  durationMinutes: number | null;
+  resultDescription: string | null;
+  evidenceUrl: string | null;
+  evidenceFileName: string | null;
+  evidenceMimeType: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: Pick<User, 'id' | 'nombres' | 'apellidos' | 'email' | 'rol'> | null;
+}
+
+export interface ExtraActivityQuery {
+  page?: number;
+  limit?: number;
+  type?: ExtraActivityType | '';
+  status?: ExtraActivityStatus | '';
+  workTimeCategory?: WorkTimeCategory | '';
+  priority?: ExtraActivityPriority | '';
+  userId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  externalReference?: string;
+}
+
+export interface StartExtraActivityRequest {
+  type: ExtraActivityType;
+  title: string;
+  description?: string;
+  moduleName?: string;
+  priority: ExtraActivityPriority;
+  workTimeCategory: WorkTimeCategory;
+  externalReference?: string;
+}
+
+export interface UpdateExtraActivityRequest {
+  type?: ExtraActivityType;
+  title?: string;
+  description?: string;
+  moduleName?: string;
+  priority?: ExtraActivityPriority;
+  workTimeCategory?: WorkTimeCategory;
+  externalReference?: string;
+  resultDescription?: string;
+}
+
+export interface FinishExtraActivityRequest {
+  resultDescription?: string;
+}
+
+export interface CancelExtraActivityRequest {
+  reason?: string;
+}
+
+export interface ExtraActivitySummaryMe {
+  minutesToday: number;
+  hoursToday: number;
+  minutesMonth: number;
+  hoursMonth: number;
+  minutesOutsideShift: number;
+  hoursOutsideShift: number;
+  finishedCount: number;
+  activeActivity: ExtraActivity | null;
+}
+
+export interface ExtraActivitySummaryGlobal {
+  minutesMonth: number;
+  hoursMonth: number;
+  minutesOutsideShift: number;
+  hoursOutsideShift: number;
+  finishedCount: number;
+  inProgressCount: number;
+  byUser: Array<{
+    user: Pick<User, 'id' | 'nombres' | 'apellidos' | 'email'>;
+    minutesMonth: number;
+    hoursMonth: number;
+    finishedCount: number;
+  }>;
 }

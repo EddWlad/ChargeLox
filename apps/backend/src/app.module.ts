@@ -19,6 +19,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ShiftLogsModule } from './shift-logs/shift-logs.module';
 import { TechnicalActivitiesModule } from './technical-activities/technical-activities.module';
 import { UsersModule } from './users/users.module';
+import { ExtraActivitiesModule } from './extra-activities/extra-activities.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     AuditLogsModule,
     ReportsModule,
     TechnicalActivitiesModule,
+    ExtraActivitiesModule,
   ],
   controllers: [AppController],
   providers: [

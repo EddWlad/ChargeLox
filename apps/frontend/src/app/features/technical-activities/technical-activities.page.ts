@@ -53,6 +53,70 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         font-weight: 600;
         line-height: 1.2;
       }
+
+      .technical-delete-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        display: grid;
+        place-items: center;
+        padding: 1.6rem;
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      .technical-delete-modal {
+        width: min(52rem, 100%);
+        border: 0.1rem solid var(--line);
+        border-radius: 1.6rem;
+        background: #fff;
+        box-shadow: 0 2.4rem 6rem rgba(15, 23, 42, 0.24);
+        padding: 2rem;
+        display: grid;
+        gap: 1.2rem;
+      }
+
+      .technical-delete-modal h3 {
+        margin: 0;
+      }
+
+      .technical-delete-modal p {
+        margin: 0;
+      }
+
+      .technical-delete-title {
+        color: #b91c1c;
+      }
+
+      .technical-delete-item {
+        border-radius: 1rem;
+        border: 0.1rem solid #fecaca;
+        background: #fff1f2;
+        color: #991b1b;
+        padding: 0.9rem 1.1rem;
+        font-weight: 600;
+        word-break: break-word;
+      }
+
+      .technical-delete-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 0.4rem;
+      }
+
+      @media (max-width: 48rem) {
+        .technical-delete-modal {
+          padding: 1.6rem;
+        }
+
+        .technical-delete-actions {
+          flex-direction: column-reverse;
+        }
+
+        .technical-delete-actions .btn {
+          width: 100%;
+        }
+      }
     `,
   ],
   template: `
@@ -243,9 +307,21 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
                 <td data-label="Técnico">{{ item.tecnicoAsignado?.nombres ?? '-' }}</td>
                 <td data-label="Programada">{{ item.fechaProgramada | date: 'mediumDate' }}</td>
                 <td data-label="Acciones" class="table-actions-col">
-                  <a class="btn btn-secondary" [routerLink]="['/app/technical-activities', item.id]">
-                    Ver detalle
-                  </a>
+                  <div class="icon-actions wrap" role="group" aria-label="Acciones de actividad técnica">
+                    <a class="btn btn-secondary" [routerLink]="['/app/technical-activities', item.id]">
+                      Ver detalle
+                    </a>
+                    <button
+                      *ngIf="canDelete()"
+                      type="button"
+                      class="icon-btn danger"
+                      (click)="openDeleteModal(item)"
+                      title="Eliminar"
+                      aria-label="Eliminar"
+                    >
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr *ngIf="items().length === 0">
@@ -266,16 +342,62 @@ import { enableAutoDismiss } from '../../core/utils/auto-dismiss.util';
         </footer>
       </article>
     </section>
+
+    <div
+      *ngIf="deleteModalOpen()"
+      class="technical-delete-modal-backdrop"
+      (click)="closeDeleteModal()"
+    >
+      <article
+        class="technical-delete-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="technical-delete-title"
+        (click)="$event.stopPropagation()"
+      >
+        <h3 id="technical-delete-title" class="technical-delete-title">
+          Eliminar operación técnica
+        </h3>
+        <p>¿Seguro que deseas eliminar esta operación técnica?</p>
+        <p class="technical-delete-item">
+          {{ activityToDelete()?.titulo }}
+        </p>
+        <p>
+          Esta acción también eliminará comentarios, evidencias e historial relacionados.
+        </p>
+        <div class="technical-delete-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="closeDeleteModal()"
+            [disabled]="deleting()"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            (click)="confirmDelete()"
+            [disabled]="deleting()"
+          >
+            {{ deleting() ? 'Eliminando...' : 'Eliminar' }}
+          </button>
+        </div>
+      </article>
+    </div>
   `,
 })
 export class TechnicalActivitiesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   readonly loading = signal(false);
+  readonly deleting = signal(false);
   readonly items = signal<TechnicalActivity[]>([]);
   readonly total = signal(0);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly deleteModalOpen = signal(false);
+  readonly activityToDelete = signal<Pick<TechnicalActivity, 'id' | 'titulo'> | null>(null);
 
   readonly technicians = signal<Array<Pick<User, 'id' | 'nombres' | 'email' | 'rol'>>>([]);
   readonly chargingPoints = signal<ChargingPoint[]>([]);
@@ -347,6 +469,14 @@ export class TechnicalActivitiesPageComponent implements OnInit {
       RolUsuario.ADMINISTRADOR,
       RolUsuario.SUPERVISOR,
       RolUsuario.GESTOR_DE_VISITAS,
+      RolUsuario.ANALISTA,
+    ]);
+  }
+
+  canDelete(): boolean {
+    return this.authService.hasAnyRole([
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.SUPERVISOR,
       RolUsuario.ANALISTA,
     ]);
   }
@@ -462,6 +592,62 @@ export class TechnicalActivitiesPageComponent implements OnInit {
           this.errorMessage.set(
             error.error?.message ??
               'No fue posible crear la actividad técnica.',
+          );
+        },
+      });
+  }
+
+  openDeleteModal(activity: TechnicalActivity): void {
+    if (!this.canDelete() || this.loading() || this.deleting()) {
+      return;
+    }
+
+    this.activityToDelete.set({
+      id: activity.id,
+      titulo: activity.titulo,
+    });
+    this.deleteModalOpen.set(true);
+  }
+
+  closeDeleteModal(): void {
+    if (this.deleting()) {
+      return;
+    }
+
+    this.deleteModalOpen.set(false);
+    this.activityToDelete.set(null);
+  }
+
+  confirmDelete(): void {
+    const selected = this.activityToDelete();
+    if (!selected || !this.canDelete() || this.loading() || this.deleting()) {
+      return;
+    }
+
+    this.deleting.set(true);
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
+
+    this.technicalApi
+      .remove(selected.id)
+      .pipe(
+        finalize(() => {
+          this.loading.set(false);
+          this.deleting.set(false);
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.successMessage.set(response.message);
+          this.deleting.set(false);
+          this.closeDeleteModal();
+          this.load();
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(
+            error.error?.message ??
+              'No fue posible eliminar la actividad técnica.',
           );
         },
       });

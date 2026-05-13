@@ -146,6 +146,12 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
       roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA],
     },
     {
+      label: 'Actividades Extra',
+      path: '/app/extra-activities',
+      icon: 'pending_actions',
+      roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA],
+    },
+    {
       label: 'Operación técnica',
       path: '/app/technical-activities',
       icon: 'engineering',
@@ -239,6 +245,7 @@ export class PrivateShellComponent implements OnInit, OnDestroy {
 
     if (route.includes('/charging-points')) return 'Puntos de carga y electrolineras';
     if (route.includes('/shift-logs')) return 'Turnos de monitoreo';
+    if (route.includes('/extra-activities')) return 'Actividades Extraordinarias';
     if (route.includes('/activities')) return 'Novedades y seguimientos';
     if (route.includes('/technical-activities')) return 'Operación técnica de campo';
     if (route.includes('/notifications')) return 'Notificaciones';

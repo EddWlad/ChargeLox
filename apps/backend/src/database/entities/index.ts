@@ -13,3 +13,4 @@ export {
   TechnicalEvidenceStorageProvider,
 } from './technical-activity-evidence.entity';
 export { TechnicalActivityHistory } from './technical-activity-history.entity';
+export { ExtraActivity } from './extra-activity.entity';

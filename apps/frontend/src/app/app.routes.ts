@@ -8,6 +8,7 @@ import { ChargingPointDetailPageComponent } from './features/charging-points/cha
 import { ChargingPointsPageComponent } from './features/charging-points/charging-points.page';
 import { DashboardPageComponent } from './features/dashboard/dashboard.page';
 import { NotificationsPageComponent } from './features/notifications/notifications.page';
+import { ExtraActivitiesPageComponent } from './features/extra-activities/extra-activities.page';
 import {
   PublicChargingPointDetailPageComponent,
 } from './features/public-home/public-charging-point-detail.page';
@@ -63,6 +64,12 @@ export const routes: Routes = [
       {
         path: 'activities/:id',
         component: ActivityDetailPageComponent,
+        canActivate: [roleGuard],
+        data: { roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA] },
+      },
+      {
+        path: 'extra-activities',
+        component: ExtraActivitiesPageComponent,
         canActivate: [roleGuard],
         data: { roles: [RolUsuario.ADMINISTRADOR, RolUsuario.ANALISTA] },
       },
